@@ -55,7 +55,7 @@ subscriptions:
   #   "3": public_snippets
   profiles:
     main_edt:
-      name: Main EDT
+      name: Main edt_panel
       aliases: [edt, main]
       format: edt
       domain: sub.example.com

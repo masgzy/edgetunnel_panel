@@ -50,8 +50,8 @@ jobs:
 
       - name: Build (linux/macos)
         if: runner.os != 'Windows'
-        run: go build -trimpath -o edt-check .
+        run: go build -trimpath -o edt_panel-check .
 
       - name: Build (windows)
         if: runner.os == 'Windows'
-        run: go build -trimpath -o edt-check.exe .
+        run: go build -trimpath -o edt_panel-check.exe .

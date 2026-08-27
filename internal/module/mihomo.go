@@ -194,7 +194,7 @@ func BuildSubWithConfig(entries []SubEntry, configURL string) string {
 // fetch 失败时回退到内置标准 ACL4SSR 规则集。
 func fullConfigWithACL4SSR(entries []SubEntry, configURL string) string {
 	var b strings.Builder
-	b.WriteString("# Mihomo / Clash Meta 配置 - 由 EDT 生成（ACL4SSR 规则集模式）\n")
+	b.WriteString("# Mihomo / Clash Meta 配置 - 由 edt_panel 生成（ACL4SSR 规则集模式）\n")
 	b.WriteString(fmt.Sprintf("# 规则集来源: %s\n", configURL))
 	b.WriteString(mihomoBaseBody)
 	b.WriteString("proxies:\n")
@@ -373,7 +373,7 @@ func acl4ssrProxyGroups(hasEntries bool) string {
     url: http://www.gstatic.com/generate_204
     interval: 300
     tolerance: 50
-    use: [EDT]
+    use: [edt_panel]
   - name: 🌍 国外媒体
     type: select
     proxies: [🚀 节点选择, ♻️ 自动选择, 🎯 全球直连]
@@ -402,7 +402,7 @@ func acl4ssrProxyGroups(hasEntries bool) string {
     type: select
     proxies: [🚀 节点选择, 🎯 全球直连, ♻️ 自动选择]
 proxy-providers:
-  EDT:
+  edt_panel:
     type: file
     path: ./proxy_providers/edt.yaml
     health-check:
@@ -444,7 +444,7 @@ func splitHostPortStr(s string) (string, int, bool) {
 	return s[:idx], port, true
 }
 
-const mihomoBaseHeader = `# Mihomo / Clash Meta 配置 - 由 EDT 生成
+const mihomoBaseHeader = `# Mihomo / Clash Meta 配置 - 由 edt_panel 生成
 # 生成时间由服务端动态填充
 mixed-port: 7890
 allow-lan: true
@@ -492,7 +492,7 @@ func proxyGroupsSection(hasEntries bool) string {
     interval: 300
     tolerance: 50
     proxies: []
-    use: [EDT]
+    use: [edt_panel]
   - name: 🌍 国外媒体
     type: select
     proxies: [🚀 节点选择, ♻️ 自动选择, 🎯 全球直连]
@@ -522,7 +522,7 @@ func proxyGroupsSection(hasEntries bool) string {
     proxies: [🚀 节点选择, 🎯 全球直连, ♻️ 自动选择]
 
 proxy-providers:
-  EDT:
+  edt_panel:
     type: file
     path: ./proxy_providers/edt.yaml
     health-check:

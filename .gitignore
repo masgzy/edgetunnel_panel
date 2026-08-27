@@ -1,7 +1,7 @@
 # 编译产物
-edt
-edt.exe
-edt-bin
+edt_panel
+edt_panel.exe
+edt_panel-bin
 package/
 dist/
 *.part

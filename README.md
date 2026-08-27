@@ -1,6 +1,6 @@
 <div align="center">
 
-# EDT
+# edt_panel
 
 **轻量级 VLESS 订阅管理面板 · 单二进制 · Material 3 Expressive**
 
@@ -19,7 +19,7 @@
 
 ## 它是什么
 
-EDT 面向「有几个自建节点、想在多台设备上方便地订阅使用」的个人场景，把通常散落在
+edt_panel 面向「有几个自建节点、想在多台设备上方便地订阅使用」的个人场景，把通常散落在
 文本文件和各类脚本里的节点管理工作收进一个 Web 控制台：
 
 - **节点即数据**：节点以 VLESS 分享链接的形式存放在 `data/vless.txt` 中，一条一行，
@@ -35,17 +35,17 @@ EDT 面向「有几个自建节点、想在多台设备上方便地订阅使用�
 
 ## 与 edgetunnel 生态的关系
 
-EDT 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudflare 边缘隧道）
+edt_panel 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudflare 边缘隧道）
 生态打造：把原本散落在 Workers 面板、优选 IP 列表和订阅转换器之间的管理动作，
 收进一个跑在自己服务器上的本地控制台。
 
-| 上游项目 | EDT 如何对接 |
+| 上游项目 | edt_panel 如何对接 |
 |----------|--------------|
 | [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel) | 管理其节点与 UUID；订阅链接供客户端直连 Workers/Pages 入口 |
 | [EDT-Pages 型面板](https://github.com/EDT-Pages/EDT-Pages.github.io)（BPB 血统） | `remote.admin_url` 指向 `admin/config.json`：拉取 UUID；顺带读取 CF.Usage 真实用量展示到客户端流量统计；`auth.login_url` 完成 POST password 登录换 auth Cookie |
 | [cmliu/WorkerVless2sub](https://github.com/cmliu/WorkerVless2sub) | 优选 IP 列表兼容 `ip:port#备注` ADD 格式，可直接复用 CloudflareSpeedTest 产出 |
 
-未部署远程面板？没关系——不配置 `remote` 时 EDT 完全本地自治，全部功能照常可用。
+未部署远程面板？没关系——不配置 `remote` 时 edt_panel 完全本地自治，全部功能照常可用。
 
 ## 功能一览
 
@@ -87,17 +87,17 @@ EDT 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudflare 边
 ### 1. 下载
 
 到 [Releases](../../releases) 页面下载对应平台的压缩包，命名规则
-`edt_<os>_<arch>[_<变体>]`，例如：
+`edt_panel_<os>_<arch>[_<变体>]`，例如：
 
 | 文件 | 适用环境 |
 |------|----------|
-| `edt_linux_amd64.tar.gz` | 常见 x86_64 Linux（VPS / NAS） |
-| `edt_linux_arm64.tar.gz` | ARM64 Linux（树莓派 4/5、ARM 云主机） |
-| `edt_linux_armv7.tar.gz` | 32 位 ARM（armv5/armv6/armv7 按设备选择） |
-| `edt_linux_mipsle.tar.gz` | MIPS 软浮点路由器（mips/mipsle 固定 softfloat） |
-| `edt_darwin_arm64.tar.gz` | Apple Silicon macOS |
-| `edt_windows_amd64.zip` | 64 位 Windows |
-| `edt_android_arm64.tar.gz` | Android Termux 等终端环境 |
+| `edt_panel_linux_amd64.tar.gz` | 常见 x86_64 Linux（VPS / NAS） |
+| `edt_panel_linux_arm64.tar.gz` | ARM64 Linux（树莓派 4/5、ARM 云主机） |
+| `edt_panel_linux_armv7.tar.gz` | 32 位 ARM（armv5/armv6/armv7 按设备选择） |
+| `edt_panel_linux_mipsle.tar.gz` | MIPS 软浮点路由器（mips/mipsle 固定 softfloat） |
+| `edt_panel_darwin_arm64.tar.gz` | Apple Silicon macOS |
+| `edt_panel_windows_amd64.zip` | 64 位 Windows |
+| `edt_panel_android_arm64.tar.gz` | Android Termux 等终端环境 |
 
 每个 Release 附 `checksums.txt`（SHA256），建议校验后再使用：
 
@@ -108,12 +108,12 @@ sha256sum -c checksums.txt --ignore-missing
 以 Linux amd64 为例：
 
 ```bash
-tar -xzf edt_linux_amd64.tar.gz
-chmod +x edt
+tar -xzf edt_panel_linux_amd64.tar.gz
+chmod +x edt_panel
 ./edt
 ```
 
-> 首次不带配置启动时，EDT 会在当前目录生成一份带注释的 `config.yml` 模板然后退出，
+> 首次不带配置启动时，edt_panel 会在当前目录生成一份带注释的 `config.yml` 模板然后退出，
 > 编辑后再运行即可。也可以先 `cp config.example.yml config.yml` 手动准备。
 
 ### 2. 最小配置
@@ -170,7 +170,7 @@ location / {
 
 ## subconverter 桥接
 
-EDT 原生输出 Base64 / mihomo 格式订阅。若客户端需要 Clash、Surge、sing-box、
+edt_panel 原生输出 Base64 / mihomo 格式订阅。若客户端需要 Clash、Surge、sing-box、
 Quantumult X 等格式，可启用 subconverter 桥接，在 `config.yml` 中配置：
 
 ```yaml

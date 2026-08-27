@@ -32,9 +32,9 @@ type SubItem struct {
 // SubConverterConfig subconverter 桥接配置。
 type SubConverterConfig struct {
 	// Mode: "local" | "remote" | "off"
-	// local = 调用本地 bin/subconverter/subconverter 二进制（由 EDT 启动）
+	// local = 调用本地 bin/subconverter/subconverter 二进制（由 edt_panel 启动）
 	// remote = 调用配置的远程 URL
-	// off = 不启用（仅 EDT 原生 vless/clash/mihomo）
+	// off = 不启用（仅 edt_panel 原生 vless/clash/mihomo）
 	Mode      string
 	Remote    string // 远程 subconverter base url（如 https://api.v1.mk）
 	LocalBin  string // 本地 subconverter 二进制路径
@@ -280,7 +280,7 @@ func (s *SubscriptionService) BuildMihomoSubscription(subID, subType, configURL 
 }
 
 // ConvertViaSubConverter 调用 subconverter 把 vless 订阅转成其他格式（singbox/surge/quanx 等）。
-// sourceURL 是 EDT 自己生成的 vless 订阅地址（subconverter 作为远程抓取源）。
+// sourceURL 是 edt_panel 自己生成的 vless 订阅地址（subconverter 作为远程抓取源）。
 func (s *SubscriptionService) ConvertViaSubConverter(target, sourceURL, externalConfig string) (string, error) {
 	baseURL, err := s.subconverterBaseURL()
 	if err != nil {

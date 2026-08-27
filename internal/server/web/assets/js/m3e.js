@@ -48,7 +48,7 @@ const translations = {
   'zh': {
     'dashboard': '仪表盘', 'nodes': '节点配置', 'selector': '优选 IP', 'settings': '设置',
     'ok': '知道了', 'cancel': '取消', 'confirm': '确定',
-    'app_title': 'EDT 订阅管理', 'refresh': '刷新', 'add': '添加', 'batch': '批量',
+    'app_title': 'edt_panel 订阅管理', 'refresh': '刷新', 'add': '添加', 'batch': '批量',
     'import': '导入', 'export': '导出', 'sort': '排序', 'select': '选择',
     'search_placeholder': '搜索名称 / IP / 优选 IP…',
     'nodes_title': '节点配置', 'nodes_subtitle': '管理 vless.txt 节点列表 · 支持 增删改查、批量添加、拖拽排序',
@@ -92,7 +92,7 @@ const translations = {
     'backup_desc': '备份包含 vless.txt、result.csv、pre_ip.txt、stats.json 等数据文件。恢复会覆盖现有 data 目录。',
     'download_backup': '下载备份', 'restore_backup': '恢复备份',
     'run_log': '运行日志', 'log_subtitle': '最近 200 行',
-    'about': '关于', 'about_subtitle': 'EDT 订阅管理服务', 'version': '版本', 'runtime': '运行时',
+    'about': '关于', 'about_subtitle': 'edt_panel 订阅管理服务', 'version': '版本', 'runtime': '运行时',
     'ui': 'UI', 'source': '源码',
     'uuid_card': 'UUID', 'uuid_subtitle': '动态/静态订阅标识', 'get': '获取', 'copy': '复制', 'clear': '清除',
     'ip_card': '首选测速 IP', 'ip_card_subtitle': 'result.csv 首行', 'get_ip': '获取', 'copy_ip': '复制 IP',
@@ -140,7 +140,7 @@ const translations = {
     't_no_ip_node': '此节点没有有效 IP', 't_history_cleared': '历史已清空',
     't_backup_start': '开始下载备份', 't_restore_ok': '恢复完成：', 't_restore_fail': '恢复失败：',
     't_load_fail': '加载失败：', 't_refreshed': '已刷新', 't_set_cur_ok': '已设为当前：',
-    't_set_ok': '已设置', 't_pre_ip_empty': '前缀和 IP 都不能为空', 't_config_not_loaded': '配置未加载', 't_config_saved': '配置已保存，重启生效', 't_config_save_fail': '保存失败', 't_sc_installed': 'subconverter 安装成功', 't_sc_install_fail': '安装失败', 'sc_tip': 'EDT 原生支持 vless/mihomo，subconverter 用于 clashr/surge/quanx 等格式转换。保存后需重启生效。', 'general_settings': '通用设置', 'general_subtitle': '订阅端口 / 默认模板 / 偏好', 'history_limit': '订阅历史显示数量', 'log_lines': '实时日志显示行数',
+    't_set_ok': '已设置', 't_pre_ip_empty': '前缀和 IP 都不能为空', 't_config_not_loaded': '配置未加载', 't_config_saved': '配置已保存，重启生效', 't_config_save_fail': '保存失败', 't_sc_installed': 'subconverter 安装成功', 't_sc_install_fail': '安装失败', 'sc_tip': 'edt_panel 原生支持 vless/mihomo，subconverter 用于 clashr/surge/quanx 等格式转换。保存后需重启生效。', 'general_settings': '通用设置', 'general_subtitle': '订阅端口 / 默认模板 / 偏好', 'history_limit': '订阅历史显示数量', 'log_lines': '实时日志显示行数',
     'sub_gen_subtitle': '按需选择参数，生成订阅链接',
     'ds_id': '数据源 ID', 'sub_type': '订阅模板 type', 'output_format': '输出格式',
     'acl4ssr_ruleset': 'Clash 规则集（ACL4SSR）', 'default': '默认',
@@ -202,7 +202,7 @@ const translations = {
   'en': {
     'dashboard': 'Dashboard', 'nodes': 'Nodes', 'selector': 'Selector', 'settings': 'Settings',
     'ok': 'Got it', 'cancel': 'Cancel', 'confirm': 'OK',
-    'app_title': 'EDT Manager', 'refresh': 'Refresh', 'add': 'Add', 'batch': 'Batch',
+    'app_title': 'edt_panel Manager', 'refresh': 'Refresh', 'add': 'Add', 'batch': 'Batch',
     'import': 'Import', 'export': 'Export', 'sort': 'Sort', 'select': 'Select',
     'search_placeholder': 'Search name / IP / yx_ip…',
     'nodes_title': 'Nodes', 'nodes_subtitle': 'Manage vless.txt node list · add/edit/delete/batch/drag-sort',
@@ -246,7 +246,7 @@ const translations = {
     'backup_desc': 'Backup includes vless.txt, result.csv, pre_ip.txt, stats.json. Restore overwrites current data dir.',
     'download_backup': 'Download Backup', 'restore_backup': 'Restore Backup',
     'run_log': 'Run Log', 'log_subtitle': 'Last 200 lines',
-    'about': 'About', 'about_subtitle': 'EDT Subscription Manager', 'version': 'Version', 'runtime': 'Runtime',
+    'about': 'About', 'about_subtitle': 'edt_panel Subscription Manager', 'version': 'Version', 'runtime': 'Runtime',
     'ui': 'UI', 'source': 'Source',
     'uuid_card': 'UUID', 'uuid_subtitle': 'Dynamic/static subscription id', 'get': 'Get', 'copy': 'Copy', 'clear': 'Clear',
     'ip_card': 'Preferred Test IP', 'ip_card_subtitle': 'result.csv first row', 'get_ip': 'Get', 'copy_ip': 'Copy IP',
@@ -294,7 +294,7 @@ const translations = {
     't_no_ip_node': 'No valid IP for this node', 't_history_cleared': 'History cleared',
     't_backup_start': 'Downloading backup', 't_restore_ok': 'Restore done: ', 't_restore_fail': 'Restore failed: ',
     't_load_fail': 'Load failed: ', 't_refreshed': 'Refreshed', 't_set_cur_ok': 'Set as current: ',
-    't_set_ok': 'Set', 't_pre_ip_empty': 'Prefix and IP cannot be empty', 't_config_not_loaded': 'Config not loaded', 't_config_saved': 'Saved, restart to take effect', 't_config_save_fail': 'Save failed', 't_sc_installed': 'subconverter installed', 't_sc_install_fail': 'Install failed', 'sc_tip': 'EDT supports vless/mihomo natively. subconverter for clashr/surge/quanx. Restart to take effect.', 'general_settings': 'General Settings', 'general_subtitle': 'Sub port / Default profile / Preferences', 'history_limit': 'History Display Count', 'log_lines': 'Log Display Lines',
+    't_set_ok': 'Set', 't_pre_ip_empty': 'Prefix and IP cannot be empty', 't_config_not_loaded': 'Config not loaded', 't_config_saved': 'Saved, restart to take effect', 't_config_save_fail': 'Save failed', 't_sc_installed': 'subconverter installed', 't_sc_install_fail': 'Install failed', 'sc_tip': 'edt_panel supports vless/mihomo natively. subconverter for clashr/surge/quanx. Restart to take effect.', 'general_settings': 'General Settings', 'general_subtitle': 'Sub port / Default profile / Preferences', 'history_limit': 'History Display Count', 'log_lines': 'Log Display Lines',
     'sub_gen_subtitle': 'Select params to generate subscription link',
     'ds_id': 'Data Source ID', 'sub_type': 'Profile type', 'output_format': 'Output Format',
     'acl4ssr_ruleset': 'Clash Ruleset (ACL4SSR)', 'default': 'Default',
@@ -735,7 +735,7 @@ export function injectAppBar(title) {
   bar.innerHTML = `
     <div class="brand">
       <div class="logo"><span class="material-symbols-rounded">hub</span></div>
-      <span>EDT</span>
+      <span>edt_panel</span>
     </div>
     ${title ? `<span class="title-medium text-on-surface-variant" style="margin-left:8px;">· ${escapeHtml(title)}</span>` : ''}
     <span class="spacer"></span>

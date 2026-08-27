@@ -50,10 +50,10 @@ function bindSeedPicker() {
   const custom = document.getElementById('seedCustom');
   const reset = document.getElementById('seedReset');
 
-  const cur = window.EDTColor?.current?.() || '#6750A4';
+  const cur = window.edt_panelColor?.current?.() || '#6750A4';
   if (custom) custom.value = cur;
   const apply = (hex) => {
-    window.EDTColor?.applySeed?.(hex);
+    window.edt_panelColor?.applySeed?.(hex);
     swatches.forEach(sw => sw.classList.toggle('selected', sw.dataset.seed.toLowerCase() === hex.toLowerCase()));
     toast(i18n.t('t_seed_ok'));
   };
@@ -65,7 +65,7 @@ function bindSeedPicker() {
   swatches.forEach(sw => sw.addEventListener('click', () => apply(sw.dataset.seed)));
   custom?.addEventListener('input', (e) => apply(e.target.value));
   reset?.addEventListener('click', () => {
-    window.EDTColor?.reset?.();
+    window.edt_panelColor?.reset?.();
     swatches.forEach(sw => sw.classList.remove('selected'));
     if (custom) custom.value = '#6750A4';
     toast(i18n.t('t_seed_ok'));
@@ -470,7 +470,7 @@ function bindRefreshLogs() {
   document.getElementById('refreshLogsBtn').addEventListener('click', loadLogs);
 }
 
-// WebSocket 实时日志（EDT 自身 /ws 端点）
+// WebSocket 实时日志（edt_panel 自身 /ws 端点）
 let logWS = null;
 function connectLogWS() {
   const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';

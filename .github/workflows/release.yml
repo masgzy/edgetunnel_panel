@@ -8,7 +8,7 @@
 #   - actions/download-artifact@v8   （v8.0.1）
 #   - softprops/action-gh-release@v3 （v3.0.2）
 #
-# 产物命名 edt_<os>_<arch>[_<arm|gomips>].tar.gz|zip：
+# 产物命名 edt_panel_<os>_<arch>[_<arm|gomips>].tar.gz|zip：
 #   android_arm64            # Termux 等 Android 终端环境（CGO=0，PIE）
 #   darwin_amd64/arm64       # macOS Intel / Apple Silicon
 #   linux_386/amd64/arm64    # Linux x86 32位 / 64位 / ARM64
@@ -16,7 +16,7 @@
 #   linux_mips(64)(le)       # 路由器等环境，mips/mipsle 固定 GOMIPS=softfloat（软浮点兼容面最广）
 #   windows_386/amd64/arm64  # Windows（zip 包，内含 edt.exe）
 #
-# 归档内含：edt(.exe) + config.example.yml + install_subconverter.sh + README.md
+# 归档内含：edt_panel(.exe) + config.example.yml + install_subconverter.sh + README.md
 
 name: Release
 
@@ -78,8 +78,8 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT='.exe'; fi
           mkdir -p "package/${{ matrix.id }}"
           cp README.md config.example.yml install_subconverter.sh "package/${{ matrix.id }}/"
-          go build -trimpath -ldflags='-s -w' -o "package/${{ matrix.id }}/edt${EXT}" .
-          chmod 755 "package/${{ matrix.id }}/edt${EXT}" \
+          go build -trimpath -ldflags='-s -w' -o "package/${{ matrix.id }}/edt_panel${EXT}" .
+          chmod 755 "package/${{ matrix.id }}/edt_panel${EXT}" \
                     "package/${{ matrix.id }}/install_subconverter.sh"
 
       # actions/upload-artifact v7：if-no-files-found 必须显式报错
@@ -111,11 +111,11 @@ jobs:
           cd dist
           for dir in dist-*/; do
             d="${dir#dist-}"; d="${d%/}"
-            chmod 755 "${dir}"/edt* "${dir}"/install_subconverter.sh
+            chmod 755 "${dir}"/edt_panel* "${dir}"/install_subconverter.sh
             case "$d" in
-              windows_*) (cd "$dir" && zip -q -X -9 "../edt_${d}.zip" *) ;;
+              windows_*) (cd "$dir" && zip -q -X -9 "../edt_panel_${d}.zip" *) ;;
               *)         (cd "$dir" && tar --owner=0 --group=0 --mtime='@0' \
-                                  -czf "../edt_${d}.tar.gz" *) ;;
+                                  -czf "../edt_panel_${d}.tar.gz" *) ;;
             esac
           done
           rm -rf -- dist-*/

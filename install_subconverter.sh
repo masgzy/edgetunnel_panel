@@ -32,7 +32,7 @@ fi
 [ -n "${SCBASE_URL:-}" ] || SCBASE_URL="https://github.com/asdlokj1qpi233/subconverter/releases/latest/download/subconverter_{arch}.tar.gz"
 
 echo "=============================="
-echo " EDT subconverter 安装脚本"
+echo " edt_panel subconverter 安装脚本"
 echo "=============================="
 echo " 下载源: $SCBASE_URL"
 echo " 安装到: $INSTALL_DIR"

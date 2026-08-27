@@ -281,7 +281,7 @@ func loginPageHTML(next string, errMsg string) string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>EDT · 登录</title>
+<title>edt_panel · 登录</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
 :root{
@@ -346,8 +346,8 @@ button:active{transform:scale(.98)}
 <body>
 <main class="card">
   <div class="logo">
-    <div class="mark">EDT</div>
-    <h1>EDT 控制台</h1>
+    <div class="mark">edt_panel</div>
+    <h1>edt_panel 控制台</h1>
     <p>VLess 订阅管理服务</p>
   </div>
   ` + errBox + `

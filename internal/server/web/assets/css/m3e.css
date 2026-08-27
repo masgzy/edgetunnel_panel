@@ -960,7 +960,7 @@ body { overflow-x: hidden; } /* 同上，双保险 */
 
 /* ============ Snackbar：由 <m3e-snackbar> Web Component 渲染 ============
  * 内部样式自带（含 popover 进入/退出动效、aria-live=polite、移动端自适应）。
- * 下方仅映射 EDT 设计 token。 */
+ * 下方仅映射 edt_panel 设计 token。 */
 :root {
   --m3e-snackbar-container-color: var(--md-inverse-surface);
   --m3e-snackbar-supporting-text-color: var(--md-inverse-on-surface);

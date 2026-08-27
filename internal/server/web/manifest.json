@@ -1,6 +1,6 @@
 {
-  "name": "EDT 订阅管理",
-  "short_name": "EDT",
+  "name": "edt_panel 订阅管理",
+  "short_name": "edt_panel",
   "description": "VLess 订阅管理服务",
   "id": "/",
   "start_url": "/",

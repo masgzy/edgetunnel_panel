@@ -1,4 +1,4 @@
-// EDT - VLess 订阅管理服务（Go 实现）。
+// edt_panel - VLess 订阅管理服务（Go 实现）。
 //
 // 由原 Python Flask 项目重写，纯 Go 单二进制，无外部运行时依赖。
 // 支持原 config.yml 格式，保留全部原功能，并集成 subconverter 桥接。
@@ -64,7 +64,7 @@ func main() {
 	var cli CLI
 	ctx := kong.Parse(&cli,
 		kong.Name("edt"),
-		kong.Description("EDT - VLess 订阅管理服务"),
+		kong.Description("edt_panel - VLess 订阅管理服务"),
 		kong.UsageOnError(),
 		kong.Vars{"version": "1.0.0"},
 	)
@@ -93,7 +93,7 @@ func main() {
 	a.subSvc.SetSubConverter(scCfg)
 
 	// 启动日志落盘（先于 WatchLogFile，保证日志文件存在、轮询可立即开始）
-	server.LogLine("EDT 服务启动 root=%s 控制端口=%d 订阅端口=%d subconverter=%s",
+	server.LogLine("edt_panel 服务启动 root=%s 控制端口=%d 订阅端口=%d subconverter=%s",
 		cfg.RootDir, cfg.Port, cfg.SubscriptionPort, scMode)
 
 	// 实时日志推送：/ws 与 HTTP 同端口同源（可鉴权），日志文件守护常驻
@@ -394,7 +394,7 @@ func runHTTP(handler http.Handler, cfg *config.RuntimeConfig, scMode string, sup
 
 // printBanner 打印启动横幅（根目录/订阅端口/模板数等概览）。
 func printBanner(cfg *config.RuntimeConfig) {
-	title := ui.TitleStyle.Render("EDT")
+	title := ui.TitleStyle.Render("edt_panel")
 	subtitle := ui.DimStyle.Render("VLess 订阅管理服务 · Go " + goVersion())
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "  "+title+"  "+subtitle)

@@ -438,7 +438,7 @@ func (d *Deps) mihomoHandler(w http.ResponseWriter, r *http.Request) {
 // convertHandler /convert - subconverter 桥接，转 singbox/surge/quanx 等
 //
 // 参数: target, id, type, config
-// 流程: EDT 先生成 vless 订阅源 URL，交给 subconverter 转换
+// 流程: edt_panel 先生成 vless 订阅源 URL，交给 subconverter 转换
 func (d *Deps) convertHandler(w http.ResponseWriter, r *http.Request) {
 	d.Stats.IncConvert()
 	// 并发闸门：保护轻量后端不被洪峰打崩；满载时快速拒绝而非堆积
@@ -460,8 +460,8 @@ func (d *Deps) convertHandler(w http.ResponseWriter, r *http.Request) {
 	subType := r.URL.Query().Get("type")
 	externalConfig := r.URL.Query().Get("config")
 
-	// EDT 自身的 vless 订阅 URL（subconverter 抓取源）
-	// 注意：subconverter 需要能访问到 EDT，这里用 Host 头构造
+	// edt_panel 自身的 vless 订阅 URL（subconverter 抓取源）
+	// 注意：subconverter 需要能访问到 edt_panel，这里用 Host 头构造
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
