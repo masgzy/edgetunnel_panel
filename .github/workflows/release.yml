@@ -96,11 +96,12 @@ jobs:
     permissions:
       contents: write   # softprops/action-gh-release v3 要求的最小权限
     steps:
-      # actions/download-artifact v8：pattern 合流下载到同一目录
+      # actions/download-artifact v8：不带 merge-multiple，各平台解到
+      # dist/dist-<id>/ 独立子目录——若开启 merge-multiple 会把所有平台的
+      # 同名二进制平铺合流互相覆盖（v1.0.0 首跑踩坑），必须保持分目录
       - uses: actions/download-artifact@v8
         with:
           pattern: dist-*
-          merge-multiple: true
           path: dist
 
       - name: Package archives and checksums
@@ -108,16 +109,17 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          for d in */; do
-            d="${d%/}"
-            chmod 755 "$d"/edt* "$d"/install_subconverter.sh
+          for dir in dist-*/; do
+            d="${dir#dist-}"; d="${d%/}"
+            chmod 755 "${dir}"/edt* "${dir}"/install_subconverter.sh
             case "$d" in
-              windows_*) (cd "$d" && zip -q -X -9 "../edt_${d}.zip" *) ;;
-              *)         (cd "$d" && tar --owner=0 --group=0 --mtime='@0' \
+              windows_*) (cd "$dir" && zip -q -X -9 "../edt_${d}.zip" *) ;;
+              *)         (cd "$dir" && tar --owner=0 --group=0 --mtime='@0' \
                                   -czf "../edt_${d}.tar.gz" *) ;;
             esac
           done
-          rm -rf -- */
+          rm -rf -- dist-*/
+          rm -f checksums.txt   # 防止重跑时把自身算进校验清单
           sha256sum * > checksums.txt
           ls -la
 
