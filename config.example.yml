@@ -1,0 +1,105 @@
+# 运行参数
+app:
+  host: 0.0.0.0
+  port: 5001
+  debug: false
+
+# 远程控制端配置
+# 指向 EDT-Pages / BPB 型管理面板：
+#   login_url  = 面板登录地址（POST password 换 auth Cookie）
+#   admin_url  = 面板数据文件（GET 取 UUID 与 CF 用量）
+remote:
+  control_domain: example.com
+  admin_url: https://example.com/admin/config.json
+  request_timeout: 15
+  subscription_port: 8443
+
+# 鉴权与订阅头配置
+auth:
+  login_url: https://example.com/login
+  login_password: CHANGE_ME
+  userinfo_expire: "2030-01-01 00:00:00+08:00"
+
+# 文件路径配置
+files:
+  vless_file: data/vless.txt
+  result_file: data/result.csv
+  run_time_file: data/run_time.txt
+  mihomo_template: data/mihomo/template.yaml
+  mihomo_file: data/mihomo.yaml
+  auth_cache_file: data/auth.txt
+
+# 可在 vless.txt 等数据文件中引用的变量
+# 支持三种写法：
+# 1. NRT
+# 2. {{NRT}}
+# 3. ${NRT}
+variables:
+  NRT:
+    type: file
+    path: data/NRT.txt
+  # SAMPLE_INLINE:
+  #   type: inline
+  #   content: 198.51.100.10
+
+# 订阅模板配置
+# default_profile: 当请求不传 type 时，统一使用这个模板
+# encode_base64: 是否将 /sub 的订阅内容整体编码为 Base64
+# defaults_by_id: 可选。需要时再按 id 覆盖默认模板
+# profiles: 可定义名字、别名、格式、域名、UUID 模式
+subscriptions:
+  default_profile: main_edt
+  encode_base64: true
+  # defaults_by_id:
+  #   "2": public_snippets
+  #   "3": public_snippets
+  profiles:
+    main_edt:
+      name: Main EDT
+      aliases: [edt, main]
+      format: edt
+      domain: sub.example.com
+      uuid_mode: dynamic
+    public_snippets:
+      name: Public Snippets
+      aliases: [snippet, snippets]
+      format: snippets
+      domain: snippets.example.com
+      uuid_mode: static
+      uuid: 00000000-0000-0000-0000-000000000000
+    alt_snippets:
+      name: Alternate Snippets
+      aliases: [snip1]
+      format: snippets
+      domain: alt-snippets.example.com
+      uuid_mode: static
+      uuid: 11111111-1111-1111-1111-111111111111
+
+# 数据源配置
+# vless_file: 读取文本配置
+# json_file: 读取 JSON 节点池
+# preferred_result: 根据 pre_ip 和 result.csv 动态生成
+data_sources:
+  by_id:
+    "1":
+      name: Main VLESS File
+      kind: vless_file
+      path: data/vless.txt
+    "2":
+      name: Optional Custom ProxyIP Pool
+      kind: json_file
+      path: data/custom_proxies.json
+    "3":
+      name: Preferred Result Generator
+      kind: preferred_result
+
+# subconverter 桥接配置（可选）
+# mode: off=禁用 | local=本地二进制 | remote=远程地址
+# bin: 本地 subconverter 二进制路径（mode=local 时使用）
+# port: 本地 subconverter 监听端口（默认 25500）
+# remote: 远程 subconverter 地址（mode=remote 时使用）
+subconverter:
+  mode: off
+  bin: bin/subconverter/subconverter
+  port: 25500
+  # remote: https://api.v1.mk

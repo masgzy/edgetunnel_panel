@@ -1,0 +1,139 @@
+/* 设置专用 */
+.theme-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.theme-chip {
+  height: 40px;
+  padding: 0 16px;
+}
+.theme-chip.selected {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  border-color: transparent;
+}
+
+.kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--md-outline-variant) 50%, transparent);
+}
+.kv-row:last-child { border-bottom: none; }
+.kv-label {
+  color: var(--md-on-surface-variant);
+  font-size: var(--font-body-medium);
+}
+.kv-value {
+  color: var(--md-on-surface);
+  font-size: var(--font-body-medium);
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+}
+
+.sc-tip {
+  background: var(--md-surface-container);
+  padding: 10px 14px;
+  border-radius: var(--shape-md);
+  line-height: 1.55;
+  font-size: 0.82rem;
+}
+.sc-tip code {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.9em;
+  background: var(--md-surface-container-highest);
+  padding: 1px 6px;
+  border-radius: var(--shape-xs);
+  color: var(--md-primary);
+  word-break: break-all;
+}
+.sc-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sc-list li {
+  font-size: var(--font-body-small);
+  padding-left: 4px;
+}
+
+/* 配置文件查看器 */
+.config-viewer {
+  resize: vertical;
+  background: var(--md-surface-container);
+  border-radius: var(--shape-md);
+  padding: 16px;
+  font-family: 'Roboto Mono', 'SF Mono', Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--md-on-surface);
+  overflow-x: auto;
+  max-height: 480px;
+  overflow-y: auto;
+  white-space: pre;
+  font-family: 'Roboto Mono', monospace;
+  word-break: break-all;
+  border: 1px solid var(--md-outline-variant);
+}
+
+/* 日志查看器 */
+.log-viewer {
+  background: #1a1a1a;
+  color: #e0e0e0;
+  border-radius: var(--shape-md);
+  padding: 16px;
+  font-family: 'Roboto Mono', 'SF Mono', Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.7;
+  max-height: 360px;
+  overflow-y: auto;
+  white-space: pre;
+  font-family: 'Roboto Mono', monospace;
+  word-break: break-all;
+  border: 1px solid var(--md-outline-variant);
+}
+.log-viewer::-webkit-scrollbar {
+  width: 8px;
+}
+.log-viewer::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
+}
+
+/* 移动端：保存按钮 sticky 在卡片底部，避免长表单需滚动到最底 */
+@media (max-width: 720px) {
+  /* 卡片内最后一个 mt-4 按钮组 sticky 到 viewport 底部 */
+  .card.outlined .btn-filled.mt-4,
+  .card.outlined .flex.gap-2.mt-4 {
+    position: sticky;
+    bottom: 8px;
+    z-index: 5;
+    background: color-mix(in srgb, var(--md-surface-container-low) 95%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 8px 12px;
+    margin: 12px -16px -16px;
+    border-radius: 0 0 var(--shape-lg) var(--shape-lg);
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+  }
+  /* 输入框高度统一（移动端 ≥44px） */
+  .text-field input,
+  .text-field select,
+  .text-field textarea {
+    min-height: 44px;
+    font-size: 16px !important;
+  }
+  /* 长说明区折叠为可滚动 */
+  .sc-tip { max-height: 100px; overflow-y: auto; }
+}

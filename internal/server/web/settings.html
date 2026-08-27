@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="EDT - VLess 订阅管理 · 节点配置 / 优选 IP / 订阅转换">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FEF7FF">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141218">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>EDT · 设置</title>
+  <!-- 早期主题应用 -->
+  <script>
+  (function(){
+    try {
+      var m = localStorage.getItem('edt-theme') || 'system';
+      var d = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+    } catch(e) {}
+  })();
+  </script>
+  <link rel="preconnect" href="https://fonts.font.im">
+  <link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded"></noscript>
+  <link rel="stylesheet" href="https://fonts.font.im/css?family=Roboto+Flex">
+  <link rel="stylesheet" href="/assets/css/m3e.css">
+  <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
+  <script src="/assets/vendor/theme.bundle.js"></script>
+  <link rel="stylesheet" href="/assets/css/settings.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <div class="bg-decor"><div class="orb-extra"></div></div>
+  <div class="app-shell">
+    <header class="top-app-bar" data-app-bar></header>
+    <main class="page-main">
+      <section class="hero fade-in">
+        <h1 class="headline-medium" data-i18n="settings">设置</h1>
+        <p class="body-medium text-on-surface-variant mt-2" data-i18n="appearance">外观 · 后端状态 · 关于</p>
+      </section>
+
+      <!-- 外观 -->
+      <div class="card outlined fade-in">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">palette</span></div>
+          <div class="titles"><div class="title" data-i18n="appearance">外观</div><div class="subtitle" data-i18n="theme_mode">主题模式</div></div>
+        </div>
+        <div class="theme-options">
+          <button class="chip theme-chip" data-theme-mode="light">
+            <span class="material-symbols-rounded">light_mode</span><span data-i18n="light">浅色</span>
+          </button>
+          <button class="chip theme-chip" data-theme-mode="dark">
+            <span class="material-symbols-rounded">dark_mode</span><span data-i18n="dark">深色</span>
+          </button>
+          <button class="chip theme-chip" data-theme-mode="system">
+            <span class="material-symbols-rounded">brightness_auto</span><span data-i18n="follow_system">跟随系统</span>
+          </button>
+        </div>
+        <!-- 主题色（seed 动态色板） -->
+        <div class="text-field mt-4">
+          <label data-i18n="theme_color_subtitle">从种子色实时生成整套 M3 色板（HCT）</label>
+          <div class="seed-grid" id="seedGrid">
+            <button class="seed-swatch" data-seed="#6750A4" style="background:#6750A4" aria-label="默认紫" title="默认紫"></button>
+            <button class="seed-swatch" data-seed="#1565C0" style="background:#1565C0" aria-label="蓝" title="蓝"></button>
+            <button class="seed-swatch" data-seed="#00838F" style="background:#00838F" aria-label="青" title="青"></button>
+            <button class="seed-swatch" data-seed="#2E7D32" style="background:#2E7D32" aria-label="绿" title="绿"></button>
+            <button class="seed-swatch" data-seed="#EF6C00" style="background:#EF6C00" aria-label="橙" title="橙"></button>
+            <button class="seed-swatch" data-seed="#C62828" style="background:#C62828" aria-label="红" title="红"></button>
+            <button class="seed-swatch" data-seed="#C2185B" style="background:#C2185B" aria-label="粉" title="粉"></button>
+            <button class="seed-swatch" data-seed="#3949AB" style="background:#3949AB" aria-label="靖" title="靖"></button>
+            <label class="seed-custom">
+              <input type="color" id="seedCustom" value="#6750A4" aria-label="自定义主题色">
+              <span data-i18n="theme_color_custom">自定义</span>
+            </label>
+            <button class="chip" id="seedReset">
+              <span class="material-symbols-rounded">restart_alt</span><span data-i18n="theme_reset">默认</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- subconverter 桥接设置 -->
+      <div class="card outlined fade-in">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">sync_alt</span></div>
+          <div class="titles"><div class="title" data-i18n="sc_bridge">subconverter 桥接</div><div class="subtitle" data-i18n="sc_subtitle">异构格式转换后端</div></div>
+        </div>
+        <div class="text-field">
+          <label data-i18n="mode">模式</label>
+          <select id="scModeSelect">
+            <option value="off" data-i18n="mode_off">Off（禁用）</option>
+            <option value="local" data-i18n="mode_local">Local（本地二进制）</option>
+            <option value="remote" data-i18n="mode_remote">Remote（远程后端）</option>
+          </select>
+        </div>
+        <div class="text-field" id="scRemoteField">
+          <label data-i18n="remote_addr">远程地址</label>
+          <select id="scRemoteSelect">
+            <option value="" data-i18n="pick_remote">-- 选择远程后端 --</option>
+          </select>
+          <input type="text" id="scRemoteInput" placeholder="或输入自定义地址" data-i18n="custom_remote_ph" data-i18n-placeholder style="margin-top:8px;">
+        </div>
+        <div class="text-field" id="scLocalField">
+          <label data-i18n="sc_bin_label">subconverter 二进制</label>
+          <div class="flex gap-2" style="align-items:center;flex-wrap:wrap;">
+            <span id="scInstallStatus" class="body-small text-on-surface-variant" data-i18n="sc_checking">检查中…</span>
+            <button class="btn btn-filled" id="scInstallBtn"><span class="material-symbols-rounded">download</span><span data-i18n="sc_install_btn">下载安装</span></button>
+          </div>
+          <div class="text-field mt-2" style="margin-top:8px;">
+            <label data-i18n="sc_threads">下载线程数</label>
+            <input type="number" id="scThreads" value="32" min="1" max="128" style="width:100px;">
+          </div>
+        </div>
+        <div class="text-field">
+          <label data-i18n="local_port">本地端口</label>
+          <input type="number" id="scPortInput" value="25500" min="1" max="65535" style="width:120px;">
+        </div>
+        <button class="btn btn-filled mt-4" id="scSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
+        <div class="sc-tip body-small text-on-surface-variant mt-4">
+          <span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">info</span>
+          <span data-i18n="sc_tip">EDT 原生支持 vless/mihomo，subconverter 用于 clashr/surge/quanx 等格式转换。保存后需重启生效。</span>
+        </div>
+      </div>
+
+      <!-- 通用设置 -->
+      <div class="card outlined fade-in">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">tune</span></div>
+          <div class="titles"><div class="title" data-i18n="general_settings">通用设置</div><div class="subtitle" data-i18n="general_subtitle">订阅端口 / 默认模板 / 偏好</div></div>
+        </div>
+        <div class="text-field">
+          <label data-i18n="sub_port">订阅端口</label>
+          <input type="number" id="settingsSubPort" value="8443" min="1" max="65535" style="width:120px;">
+        </div>
+        <div class="text-field">
+          <label data-i18n="default_profile">默认模板</label>
+          <select id="settingsProfile"></select>
+        </div>
+        <div class="text-field">
+          <label data-i18n="b64_label">Base64 编码</label>
+          <m3e-switch id="settingsB64" aria-label="Base64 编码"></m3e-switch>
+        </div>
+        <div class="text-field">
+          <label data-i18n="history_limit">订阅历史显示数量</label>
+          <input type="number" id="settingsHistoryLimit" value="10" min="1" max="100" style="width:100px;">
+        </div>
+        <div class="text-field">
+          <label data-i18n="log_lines">实时日志显示行数</label>
+          <input type="number" id="settingsLogLines" value="50" min="10" max="500" style="width:100px;">
+        </div>
+        <button class="btn btn-filled mt-4" id="settingsSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
+      </div>
+
+      <!-- 配置文件编辑 -->
+      <div class="card outlined fade-in">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">description</span></div>
+          <div class="titles"><div class="title" data-i18n="config_file">配置文件</div><div class="subtitle" data-i18n="config_subtitle">config.yml</div></div>
+        </div>
+        <textarea class="config-viewer" id="configViewer" rows="20" spellcheck="false">加载中…</textarea>
+        <div class="flex gap-2 mt-4" style="flex-wrap:wrap;">
+          <button class="btn btn-filled" id="saveConfigBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
+          <button class="btn btn-tonal" id="copyConfigBtn"><span class="material-symbols-rounded">content_copy</span><span data-i18n="copy_all">复制全部</span></button>
+          <button class="btn btn-outline" id="reloadConfigBtn"><span class="material-symbols-rounded">refresh</span><span data-i18n="refresh">刷新</span></button>
+        </div>
+        <p class="body-small text-on-surface-variant mt-2" data-i18n="config_save_hint">保存后需重启服务生效</p>
+      </div>
+
+      <!-- 数据备份 -->
+      <div class="card outlined fade-in">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">archive</span></div>
+          <div class="titles"><div class="title" data-i18n="data_backup">数据备份与恢复</div><div class="subtitle" data-i18n="backup_subtitle">导出 / 导入 data 目录</div></div>
+        </div>
+        <p class="body-small text-on-surface-variant mb-4">备份包含 vless.txt、result.csv、pre_ip.txt、stats.json 等数据文件。恢复会覆盖现有 data 目录。</p>
+        <div class="flex gap-2" style="flex-wrap:wrap;">
+          <button class="btn btn-filled" id="backupBtn"><span class="material-symbols-rounded">download</span><span data-i18n="download_backup">下载备份</span></button>
+          <button class="btn btn-tonal" id="restoreBtn"><span class="material-symbols-rounded">upload</span><span data-i18n="restore_backup">恢复备份</span></button>
+          <input type="file" id="restoreFile" accept=".zip" hidden>
+        </div>
+      </div>
+
+      <!-- 日志查看 -->
+      <div class="card outlined fade-in">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">terminal</span></div>
+          <div class="titles"><div class="title" data-i18n="run_log">运行日志</div><div class="subtitle" data-i18n="log_subtitle">最近 200 行</div></div>
+          <button class="icon-btn" id="refreshLogsBtn" aria-label="刷新" title="刷新"><span class="material-symbols-rounded">refresh</span></button>
+        </div>
+        <textarea class="log-viewer" id="logViewer" rows="15" spellcheck="false" readonly>加载中…</textarea>
+      </div>
+
+      <!-- 关于 -->
+      <div class="card outlined fade-in">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">info</span></div>
+          <div class="titles"><div class="title" data-i18n="about">关于</div><div class="subtitle" data-i18n="about_subtitle">EDT 订阅管理服务</div></div>
+        </div>
+        <div class="kv-list">
+          <div class="kv-row"><span class="kv-label" data-i18n="kv_version">版本</span><span class="kv-value">1.0.0</span></div>
+          <div class="kv-row"><span class="kv-label" data-i18n="kv_runtime">运行时</span><span class="kv-value" data-i18n="kv_value_runtime">Go 单二进制</span></div>
+          <div class="kv-row"><span class="kv-label" data-i18n="kv_ui">UI</span><span class="kv-value" data-i18n="kv_value_ui">Material Design 3 Expressive</span></div>
+          <div class="kv-row"><span class="kv-label" data-i18n="kv_source">源码</span><span class="kv-value" data-i18n="kv_value_source">edt (Go 1.21+)</span></div>
+        </div>
+        <p class="body-small text-on-surface-variant mt-4">由原 Python Flask 项目重写为纯 Go 实现，无外部运行时依赖。</p>
+      </div>
+    </main>
+    <nav class="nav-bar" data-nav></nav>
+  </div>
+  <script type="module" src="/assets/js/settings.js"></script>
+</body>
+</html>

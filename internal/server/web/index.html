@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="EDT - VLess 订阅管理 · 节点配置 / 优选 IP / 订阅转换">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FEF7FF">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141218">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>EDT · 仪表盘</title>
+  <!-- 早期主题应用：在 CSS 加载前设置 data-theme，避免刷新时 FOUC（闪现浅色） -->
+  <script>
+  (function(){
+    try {
+      var m = localStorage.getItem('edt-theme') || 'system';
+      var d = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+    } catch(e) {}
+  })();
+  </script>
+  <link rel="preconnect" href="https://fonts.font.im">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded"></noscript>
+  <link rel="stylesheet" href="https://fonts.font.im/css?family=Roboto+Flex">
+  <link rel="stylesheet" href="/assets/css/m3e.css">
+  <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
+  <script src="/assets/vendor/theme.bundle.js"></script>
+  <link rel="stylesheet" href="/assets/css/index.css">
+  <script src="https://fastly.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" async defer></script>
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <div class="bg-decor"><div class="orb-extra"></div></div>
+  <div class="app-shell">
+    <header class="top-app-bar" data-app-bar></header>
+    <main class="page-main">
+      <!-- Hero 概览 -->
+      <section class="hero fade-in">
+        <h1 class="display-small" data-i18n="dashboard_title">订阅管理仪表盘</h1>
+        <p class="body-large text-on-surface-variant mt-2" data-i18n="dashboard_subtitle">查看节点状态、获取订阅信息、生成订阅链接</p>
+      </section>
+
+      <!-- 服务状态 -->
+      <section class="card filled mt-4 fade-in" id="statusCard">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">monitor_heart</span></div>
+          <div class="titles">
+            <div class="title" data-i18n="service_status">服务状态</div>
+            <div class="subtitle" id="statusSubtitle" data-i18n="loading">加载中…</div>
+          </div>
+          <button class="btn btn-tonal" id="editStatusBtn" hidden><span class="material-symbols-rounded">edit</span><span data-i18n="edit">编辑</span></button>
+        </div>
+        <!-- 只读视图 -->
+        <div class="status-grid" id="statusView">
+          <div class="status-item">
+            <span class="material-symbols-rounded text-primary">cell_tower</span>
+            <div>
+              <div class="label-small text-on-surface-variant" data-i18n="sub_port">订阅端口</div>
+              <div class="title-medium" id="kvPort"><span class="skeleton" style="display:inline-block;width:48px;height:18px;"></span></div>
+            </div>
+          </div>
+          <div class="status-item">
+            <span class="material-symbols-rounded text-primary">tune</span>
+            <div>
+              <div class="label-small text-on-surface-variant" data-i18n="default_profile">默认模板</div>
+              <div class="title-medium" id="kvProfile"><span class="skeleton" style="display:inline-block;width:72px;height:18px;"></span></div>
+            </div>
+          </div>
+          <div class="status-item">
+            <span class="material-symbols-rounded text-primary">qr_code_2</span>
+            <div>
+              <div class="label-small text-on-surface-variant" data-i18n="b64_encode">Base64 编码</div>
+              <div class="title-medium" id="kvB64"><span class="skeleton" style="display:inline-block;width:32px;height:18px;"></span></div>
+            </div>
+          </div>
+          <div class="status-item">
+            <span class="material-symbols-rounded text-primary">sync_alt</span>
+            <div>
+              <div class="label-small text-on-surface-variant">subconverter</div>
+              <div class="title-medium" id="kvSc"><span class="skeleton" style="display:inline-block;width:32px;height:18px;"></span></div>
+            </div>
+          </div>
+        </div>
+        <!-- 编辑视图（默认隐藏） -->
+        <div class="status-edit-grid hidden" id="statusEdit">
+          <div class="text-field">
+            <label data-i18n="sub_port">订阅端口</label>
+            <input type="number" id="editPort" value="8443" min="1" max="65535">
+          </div>
+          <div class="text-field">
+            <label data-i18n="default_profile">默认模板</label>
+            <select id="editProfile" class="m3e-select"></select>
+          </div>
+          <div class="text-field">
+            <label data-i18n="b64_encode">Base64 编码</label>
+            <select id="editB64" class="m3e-select">
+              <option value="true" data-i18n="on">开启</option>
+              <option value="false" data-i18n="off">关闭</option>
+            </select>
+          </div>
+          <div class="text-field">
+            <label>subconverter</label>
+            <select id="editSc" class="m3e-select">
+              <option value="off">Off</option>
+              <option value="local">Local</option>
+              <option value="remote">Remote</option>
+            </select>
+          </div>
+          <div class="flex gap-2 mt-2">
+            <button class="btn btn-filled" id="saveStatusBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
+            <button class="btn btn-text" id="cancelStatusBtn"><span data-i18n="cancel">取消</span></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 模板与数据源统计 -->
+      <section class="stats-grid mt-4 fade-in">
+        <div class="card outlined">
+          <div class="card-header">
+            <div class="icon-leading"><span class="material-symbols-rounded">collections_bookmark</span></div>
+            <div class="titles">
+              <div class="title" data-i18n="sub_templates">订阅模板</div>
+              <div class="subtitle" id="profileCountLabel">0 个</div>
+            </div>
+          </div>
+          <div class="chip-list" id="profileChips">
+            <span class="skeleton" style="display:inline-block;width:120px;height:28px;"></span>
+            <span class="skeleton" style="display:inline-block;width:96px;height:28px;"></span>
+          </div>
+        </div>
+        <div class="card outlined">
+          <div class="card-header">
+            <div class="icon-leading"><span class="material-symbols-rounded">storage</span></div>
+            <div class="titles">
+              <div class="title" data-i18n="data_source">数据源</div>
+              <div class="subtitle" id="dsCountLabel">0 个</div>
+            </div>
+          </div>
+          <div class="ds-list" id="dsList">
+            <span class="skeleton" style="display:block;width:100%;height:44px;margin-bottom:8px;"></span>
+            <span class="skeleton" style="display:block;width:100%;height:44px;margin-bottom:8px;"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 调用统计 -->
+      <section class="card outlined fade-in mt-4" id="statsCard">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">analytics</span></div>
+          <div class="titles">
+            <div class="title" data-i18n="call_stats">调用统计</div>
+            <div class="subtitle" id="statsSubtitle">运行中…</div>
+          </div>
+        </div>
+        <div class="stats-grid-inner">
+          <div class="stat-item">
+            <div class="stat-value" id="statSub">0</div>
+            <div class="stat-label" data-i18n="stat_item_sub">订阅生成 /sub</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statMihomo">0</div>
+            <div class="stat-label" data-i18n="stat_item_mihomo">mihomo 配置</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statConvert">0</div>
+            <div class="stat-label" data-i18n="stat_item_convert">格式转换</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statGetIP">0</div>
+            <div class="stat-label" data-i18n="stat_item_getip">IP 查询</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statGetUUID">0</div>
+            <div class="stat-label" data-i18n="stat_item_getuuid">UUID 查询</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statUptime">0s</div>
+            <div class="stat-label" data-i18n="uptime">运行时长</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 信息卡片网格 -->
+      <section class="info-grid mt-4 fade-in">
+        <!-- UUID 卡片 -->
+        <div class="card outlined hoverable stagger">
+          <div class="card-header">
+            <div class="icon-leading"><span class="material-symbols-rounded">key</span></div>
+            <div class="titles">
+              <div class="title" data-i18n="uuid_card_title">UUID</div>
+              <div class="subtitle" data-i18n="uuid_subtitle">动态/静态订阅标识</div>
+            </div>
+          </div>
+          <div class="text-field filled mb-2">
+            <input type="text" id="uuidInput" placeholder="点击下方按钮获取" data-i18n-placeholder data-i18n="uuid_input_ph" readonly>
+          </div>
+          <div class="flex gap-2" style="flex-wrap:wrap;">
+            <button class="btn btn-filled" id="getUuidBtn">
+              <span class="material-symbols-rounded">download</span><span data-i18n="get">获取</span>
+            </button>
+            <button class="btn btn-tonal" id="copyUuidBtn">
+              <span class="material-symbols-rounded">content_copy</span><span data-i18n="copy">复制</span>
+            </button>
+            <button class="btn btn-outline" id="clearUuidBtn">
+              <span class="material-symbols-rounded">delete_sweep</span><span data-i18n="clear">清除</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 测速 IP 卡片 -->
+        <div class="card outlined hoverable stagger">
+          <div class="card-header">
+            <div class="icon-leading"><span class="material-symbols-rounded">speed</span></div>
+            <div class="titles">
+              <div class="title" data-i18n="ip_card_title">首选测速 IP</div>
+              <div class="subtitle" data-i18n="ip_card_subtitle">result.csv 首行</div>
+            </div>
+          </div>
+          <div class="ip-info" id="ipInfo">
+            <span class="body-medium text-on-surface-variant" data-i18n="no_data">点击下方按钮获取</span>
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button class="btn btn-filled" id="getIpBtn">
+              <span class="material-symbols-rounded">refresh</span><span data-i18n="get">获取</span>
+            </button>
+            <button class="btn btn-tonal" id="copyIpBtn">
+              <span class="material-symbols-rounded">content_copy</span><span data-i18n="copy_ip">复制 IP</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 域名卡片 -->
+        <div class="card outlined hoverable stagger">
+          <div class="card-header">
+            <div class="icon-leading"><span class="material-symbols-rounded">dns</span></div>
+            <div class="titles">
+              <div class="title" data-i18n="domain_card_title">订阅域名</div>
+              <div class="subtitle" data-i18n="domain_subtitle">当前模板 SNI</div>
+            </div>
+          </div>
+          <div class="text-field filled mb-2">
+            <input type="text" id="domainInput" placeholder="点击下方按钮获取" data-i18n-placeholder data-i18n="domain_input_ph" readonly>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-filled" id="getDomainBtn">
+              <span class="material-symbols-rounded">download</span><span data-i18n="get">获取</span>
+            </button>
+            <button class="btn btn-tonal" id="copyDomainBtn">
+              <span class="material-symbols-rounded">content_copy</span><span data-i18n="copy">复制</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 快捷入口 -->
+        <div class="card outlined hoverable quick-links">
+          <div class="card-header">
+            <div class="icon-leading"><span class="material-symbols-rounded">explore</span></div>
+            <div class="titles">
+              <div class="title" data-i18n="quick_links">快捷入口</div>
+              <div class="subtitle" data-i18n="quick_subtitle">常用页面</div>
+            </div>
+          </div>
+          <div class="flex gap-2" style="flex-wrap:wrap;">
+            <a class="btn btn-filled-tonal" href="/nodes"><span class="material-symbols-rounded">list</span><span data-i18n="nodes">节点配置</span></a>
+            <a class="btn btn-filled-tonal" href="/selector"><span class="material-symbols-rounded">tune</span><span data-i18n="selector">优选 IP</span></a>
+            <a class="btn btn-filled-tonal" href="/settings"><span class="material-symbols-rounded">settings</span><span data-i18n="settings">设置</span></a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 订阅生成器 -->
+      <section class="card filled mt-4 fade-in" id="subGenCard">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">link</span></div>
+          <div class="titles">
+            <div class="title" data-i18n="sub_generator">订阅生成器</div>
+            <div class="subtitle" data-i18n="sub_gen_subtitle">按需选择参数，生成订阅链接</div>
+          </div>
+        </div>
+
+        <div class="subgen-grid">
+          <div class="text-field">
+            <label data-i18n="ds_id">数据源 ID</label>
+            <select id="genId">
+              <option value="1">1 · Main VLESS</option>
+              <option value="2">2 · JSON 节点池</option>
+              <option value="3">3 · 优选结果</option>
+            </select>
+          </div>
+          <div class="text-field">
+            <label data-i18n="sub_type">订阅模板 type</label>
+            <select id="genType">
+              <option value="" data-i18n="default">默认</option>
+              <option value="main_edt">main_edt</option>
+              <option value="public_snippets">public_snippets</option>
+              <option value="edt">edt (别名)</option>
+              <option value="snippets">snippets (别名)</option>
+            </select>
+          </div>
+          <div class="text-field">
+            <label data-i18n="output_format">输出格式</label>
+            <select id="genFormat">
+              <option value="vless">vless（EDT 原生）</option>
+              <option value="mihomo">mihomo（EDT 原生完整配置）</option>
+              <option value="clash">clash（需 subconverter）</option>
+              <option value="clashr">clashr（需 subconverter）</option>
+              <option value="surge">surge（需 subconverter）</option>
+              <option value="quanx">quanx（需 subconverter）</option>
+              <option value="loon">loon（需 subconverter）</option>
+              <option value="singbox">singbox（需 subconverter）</option>
+            </select>
+          </div>
+          <div class="text-field" id="configField">
+            <label data-i18n="acl4ssr_ruleset">Clash 规则集（ACL4SSR）</label>
+            <select id="genConfig">
+              <option value="">默认（不指定）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="subgen-result mt-2">
+          <div class="text-field filled">
+            <label data-i18n="sub_link">订阅链接</label>
+            <input type="text" id="genUrl" readonly placeholder="选择参数后自动生成">
+          </div>
+          <div class="flex gap-2" style="flex-wrap:wrap;">
+            <button class="btn btn-filled" id="copyUrlBtn"><span class="material-symbols-rounded">content_copy</span><span data-i18n="copy_link">复制链接</span></button>
+            <button class="btn btn-tonal" id="openUrlBtn"><span class="material-symbols-rounded">open_in_new</span><span data-i18n="open_new">新窗口打开</span></button>
+            <button class="btn btn-outline" id="downloadUrlBtn"><span class="material-symbols-rounded">download</span><span data-i18n="download">下载</span></button>
+            <button class="btn btn-outline" id="shareBtn"><span class="material-symbols-rounded">share</span><span data-i18n="share">分享</span></button>
+            <button class="btn btn-outline" id="qrBtn"><span class="material-symbols-rounded">qr_code_2</span><span data-i18n="qr_code">二维码</span></button>
+          </div>
+          <div class="sc-hint body-small text-on-surface-variant mt-2 hidden" id="scHint">
+            <span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">info</span>
+            subconverter 未启用，clash/surge 等格式不可用。请在 <a href="/settings">设置页</a> 配置。
+          </div>
+          <div class="qr-area hidden mt-4" id="qrArea">
+            <div class="qr-card">
+              <div id="qrCode"></div>
+              <p class="body-small text-on-surface-variant mt-2" data-i18n="scan_to_import">扫码导入订阅</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 订阅历史 -->
+      <section class="card outlined fade-in mt-4" id="historyCard">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">history</span></div>
+          <div class="titles">
+            <div class="title" data-i18n="sub_history">订阅历史</div>
+            <div class="subtitle">最近生成的链接（本地保存）</div>
+          </div>
+          <button class="icon-btn" id="clearHistoryBtn" aria-label="清空历史" title="清空"><span class="material-symbols-rounded">delete_sweep</span></button>
+        </div>
+        <div class="history-list" id="historyList">
+          <span class="body-small text-on-surface-variant">暂无历史</span>
+        </div>
+      </section>
+    </main>
+    <nav class="nav-bar" data-nav></nav>
+  </div>
+  <script type="module" src="/assets/js/index.js"></script>
+</body>
+</html>

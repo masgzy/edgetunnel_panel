@@ -1,0 +1,1 @@
+https://github.com/asdlokj1qpi233/subconverter/releases/latest/download/subconverter_{arch}.tar.gz

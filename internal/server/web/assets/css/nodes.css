@@ -1,0 +1,402 @@
+/* 节点配置专用 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.toolbar-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 编辑行输入框 */
+.edit-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: var(--font-body-medium);
+  background: var(--md-surface-container-highest);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--shape-sm);
+  color: var(--md-on-surface);
+}
+.edit-input:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  border-width: 2px;
+  padding: 7px 9px;
+}
+
+/* 操作按钮组 */
+.action-cell {
+  display: flex;
+  gap: 4px;
+}
+.action-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  border-radius: var(--shape-full);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: background var(--motion-fast);
+}
+.action-btn .material-symbols-rounded { font-size: 18px; }
+.action-btn:hover { background: color-mix(in srgb, var(--md-on-surface) 8%, transparent); }
+.action-btn.edit:hover { background: color-mix(in srgb, var(--md-primary) 12%, transparent); color: var(--md-primary); }
+.action-btn.delete:hover { background: color-mix(in srgb, var(--md-error) 12%, transparent); color: var(--md-error); }
+.action-btn.save { color: var(--md-success); }
+.action-btn.cancel { color: var(--md-error); }
+
+/* 移动端表格转卡片 */
+@media (max-width: 599px) {
+  .data-table-wrap { box-shadow: none; background: transparent; border-radius: 0; }
+  .data-table thead { display: none; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td {
+    display: block;
+    width: 100%;
+  }
+  .data-table tr {
+    background: var(--md-surface-container-low);
+    border-radius: var(--shape-lg);
+    margin-bottom: 12px;
+    padding: 12px;
+    box-shadow: var(--elev-1);
+  }
+  .data-table td {
+    padding: 6px 0;
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    color: var(--md-on-surface-variant);
+    font-size: var(--font-label-medium);
+  }
+  .data-table td.action-cell {
+    justify-content: flex-end;
+  }
+  .data-table td.action-cell::before { display: none; }
+  /* 隐藏 FAB：toolbar 已有「添加」按钮，FAB 在窄屏反而遮挡列表操作 */
+  .fab { display: none !important; }
+}
+@media (min-width: 600px) {
+  .fab { display: none; }
+}
+
+/* 搜索框 */
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+}
+.search-box .search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--md-on-surface-variant);
+  font-size: 20px;
+  pointer-events: none;
+}
+.search-box input {
+  width: 100%;
+  padding: 10px 40px 10px 40px;
+  font-size: var(--font-body-medium);
+  background: var(--md-surface-container);
+  border: 1px solid transparent;
+  border-radius: var(--shape-full);
+  color: var(--md-on-surface);
+  transition: border-color var(--motion-fast), background var(--motion-fast);
+}
+.search-box input:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  background: var(--md-surface);
+}
+.search-box input::placeholder {
+  color: var(--md-on-surface-variant);
+  opacity: 0.7;
+}
+.search-box .search-clear {
+  position: absolute;
+  right: 4px;
+  width: 32px;
+  height: 32px;
+}
+.search-box .search-clear .material-symbols-rounded { font-size: 18px; }
+
+/* 移动端搜索框全宽 */
+@media (max-width: 599px) {
+  .search-box { max-width: 100%; order: 3; }
+}
+
+/* 选择模式操作栏 */
+.select-bar {
+  position: sticky;
+  bottom: 80px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  background: var(--md-surface-container-high);
+  border-radius: var(--shape-lg);
+  box-shadow: var(--elev-2);
+  flex-wrap: wrap;
+}
+.select-bar .select-count {
+  font-size: var(--font-body-medium);
+  font-weight: 500;
+  color: var(--md-primary);
+}
+.select-bar .select-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* checkbox 单元 */
+.check-cell {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+.check-cell input {
+  position: absolute;
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+.check-box {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--md-outline);
+  border-radius: 4px;
+  display: inline-block;
+  position: relative;
+  transition: background var(--motion-fast), border-color var(--motion-fast);
+}
+.check-cell input:checked + .check-box {
+  background: var(--md-primary);
+  border-color: var(--md-primary);
+}
+.check-cell input:checked + .check-box::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--md-on-primary);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* 拖拽排序样式 */
+.data-table tr.dragging {
+  opacity: 0.4;
+  background: var(--md-secondary-container);
+}
+.data-table tr.drag-over {
+  border-top: 3px solid var(--md-primary);
+}
+.data-table tr[draggable="true"]:hover {
+  cursor: move;
+}
+
+/* 快捷键提示 */
+.shortcut-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-label-small);
+  color: var(--md-on-surface-variant);
+}
+.shortcut kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--md-surface-container-high);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--shape-xs);
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--md-on-surface);
+  box-shadow: 0 1px 0 var(--md-outline-variant);
+}
+
+/* 节点详情抽屉 */
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 90;
+  opacity: 0;
+  transition: opacity var(--motion-normal);
+}
+.drawer-scrim:not(.hidden) {
+  opacity: 1;
+}
+.detail-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 90%;
+  max-width: 420px;
+  height: 100vh;
+  background: var(--md-surface-container-low);
+  box-shadow: var(--elev-3);
+  z-index: 91;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform var(--motion-emphasized);
+}
+.detail-drawer:not(.hidden) {
+  transform: translateX(0);
+}
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+.drawer-title {
+  font-size: var(--font-title-large);
+  font-weight: 500;
+}
+.drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+.drawer-content .detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--md-outline-variant) 50%, transparent);
+}
+.drawer-content .detail-row:last-child { border-bottom: none; }
+.drawer-content .detail-label {
+  color: var(--md-on-surface-variant);
+  font-size: var(--font-body-medium);
+  flex-shrink: 0;
+}
+.drawer-content .detail-value {
+  color: var(--md-on-surface);
+  font-size: var(--font-body-medium);
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+  font-family: 'Roboto Mono', monospace;
+}
+.drawer-actions {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--md-outline-variant);
+}
+.drawer-actions .btn { flex: 1; }
+
+/* 抽屉内可编辑输入框 */
+.detail-input {
+  flex: 1;
+  max-width: 220px;
+  padding: 6px 10px;
+  font-size: var(--font-body-small);
+  font-family: 'Roboto Mono', monospace;
+  background: var(--md-surface-container-highest);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--shape-sm);
+  color: var(--md-on-surface);
+  text-align: right;
+  transition: border-color var(--motion-fast);
+}
+.detail-input:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  border-width: 2px;
+  padding: 5px 9px;
+}
+
+/* 快捷键帮助列表 */
+.shortcut-help-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.shortcut-help-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.shortcut-help-row kbd {
+  display: inline-block;
+  min-width: 40px;
+  padding: 6px 10px;
+  background: var(--md-surface-container-high);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--shape-sm);
+  font-family: 'Roboto Mono', monospace;
+  font-size: var(--font-body-medium);
+  font-weight: 500;
+  color: var(--md-on-surface);
+  text-align: center;
+  box-shadow: 0 2px 0 var(--md-outline-variant);
+}
+.shortcut-help-row span {
+  color: var(--md-on-surface-variant);
+}
+
+/* 拖拽插入位置指示 */
+.data-table tr.drag-before {
+  border-top: 3px solid var(--md-primary) !important;
+  box-shadow: 0 -2px 8px rgba(103, 80, 164, 0.2);
+}
+.data-table tr.drag-after {
+  border-bottom: 3px solid var(--md-primary) !important;
+  box-shadow: 0 2px 8px rgba(103, 80, 164, 0.2);
+}
+.data-table tr.dragging {
+  opacity: 0.4;
+  background: var(--md-secondary-container);
+}
+.data-table tr[draggable="true"] {
+  transition: box-shadow var(--motion-fast);
+}
+.data-table tr[draggable="true"]:hover {
+  cursor: move;
+}

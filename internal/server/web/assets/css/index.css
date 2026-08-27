@@ -1,0 +1,282 @@
+/* 仪表盘专用样式 */
+.hero {
+  margin-bottom: 8px;
+}
+.hero h1 {
+  background: linear-gradient(135deg, var(--md-primary), var(--md-tertiary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 状态卡片网格 */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--md-surface-container);
+  border-radius: var(--shape-md);
+}
+.status-item .material-symbols-rounded {
+  font-size: 22px;
+}
+
+/* 信息卡片网格 */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* 统计网格 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip-list .chip {
+  height: auto;
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: var(--font-body-small);
+  flex-direction: column;
+  align-items: flex-start;
+}
+.chip-list .chip .chip-sub {
+  font-size: 10px;
+  opacity: 0.7;
+  font-weight: 400;
+}
+.ds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ds-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--md-surface-container);
+  border-radius: var(--shape-md);
+}
+.ds-item .ds-id {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  border-radius: 50%;
+  font-size: var(--font-label-medium);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.ds-item .ds-info { flex: 1; min-width: 0; }
+.ds-item .ds-name { font-size: var(--font-body-medium); font-weight: 500; }
+.ds-item .ds-kind { font-size: var(--font-label-small); color: var(--md-on-surface-variant); }
+
+/* 调用统计 */
+.stats-grid-inner {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+.stat-item {
+  background: var(--md-surface-container);
+  border-radius: var(--shape-md);
+  padding: 10px 8px;
+  text-align: center;
+}
+.stat-value {
+  font-size: var(--font-headline-medium);
+  font-weight: 500;
+  color: var(--md-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.stat-label {
+  font-size: var(--font-label-small);
+  color: var(--md-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* IP 信息块 */
+.ip-info {
+  background: var(--md-surface-container);
+  border-radius: var(--shape-md);
+  padding: 12px 16px;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+.ip-info .ip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--font-body-medium);
+}
+.ip-info .ip-row .label {
+  color: var(--md-on-surface-variant);
+}
+.ip-info .ip-row .value {
+  color: var(--md-on-surface);
+  font-weight: 500;
+}
+.ip-info .ip-row .value.mono {
+  font-family: 'Roboto Mono', monospace;
+}
+
+/* 订阅生成器 */
+.subgen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.subgen-grid .text-field { margin-bottom: 0; }
+.subgen-grid select {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: var(--font-body-large);
+  background: transparent;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--shape-sm);
+  color: var(--md-on-surface);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%2379747E' d='M6 8L1 3h10z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+.subgen-grid select:focus {
+  outline: none;
+  border-color: var(--md-primary);
+  border-width: 2px;
+  padding: 13px 15px;
+}
+
+.sc-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--md-warning-container);
+  color: var(--md-on-surface);
+  border-radius: var(--shape-sm);
+}
+
+@media (max-width: 599px) {
+  .hero h1 { font-size: var(--font-headline-medium); }
+  .info-grid { grid-template-columns: 1fr; }
+  /* 服务状态在窄屏下 2 列紧凑展示 */
+  .status-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .status-item { padding: 6px 8px; gap: 8px; }
+  .status-item .material-symbols-rounded { font-size: 20px; }
+  /* 统计在窄屏下 2 列 */
+  .stats-grid-inner { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .stat-item { padding: 8px 6px; }
+  /* 数据源/模板卡内边距收紧 */
+  .ds-item { padding: 8px 10px; }
+}
+
+/* 二维码展示 */
+.qr-area {
+  display: flex;
+  justify-content: center;
+}
+.qr-card {
+  background: var(--md-surface-container);
+  border-radius: var(--shape-lg);
+  padding: 20px;
+  text-align: center;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+.qr-card #qrCode {
+  background: #fff;
+  padding: 12px;
+  border-radius: var(--shape-md);
+  display: inline-block;
+}
+.qr-card #qrCode img,
+.qr-card #qrCode canvas {
+  display: block;
+}
+
+/* 订阅历史 */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--md-surface-container);
+  border-radius: var(--shape-md);
+  transition: background var(--motion-fast);
+}
+.history-item:hover {
+  background: var(--md-surface-container-high);
+}
+.history-item .h-time {
+  font-size: var(--font-label-small);
+  color: var(--md-on-surface-variant);
+  flex-shrink: 0;
+  min-width: 50px;
+}
+.history-item .h-url {
+  flex: 1;
+  font-family: 'Roboto Mono', monospace;
+  font-size: var(--font-body-small);
+  color: var(--md-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-item .h-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.history-item .h-actions .icon-btn {
+  width: 32px;
+  height: 32px;
+}
+.history-item .h-actions .icon-btn .material-symbols-rounded { font-size: 16px; }
+
+.status-input {
+  width: 80px;
+  padding: 4px 8px;
+  font-size: var(--font-title-medium);
+  background: var(--md-surface-container);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--shape-sm);
+  color: var(--md-on-surface);
+  text-align: center;
+}
+.status-input:focus {
+  outline: none;
+  border-color: var(--md-primary);
+}
+

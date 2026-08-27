@@ -1,0 +1,115 @@
+/* 优选 IP 专用 */
+.current-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.current-main {
+  flex: 1;
+  min-width: 240px;
+}
+.current-values {
+  display: flex;
+  gap: 24px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.cv-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cv-item .material-symbols-rounded {
+  font-size: 24px;
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--shape-full);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.toolbar-info { display: flex; align-items: center; gap: 12px; }
+.toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.action-cell { display: flex; gap: 4px; }
+.action-btn {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border: none; background: transparent;
+  color: var(--md-on-surface-variant);
+  border-radius: var(--shape-full);
+  cursor: pointer;
+  position: relative; overflow: hidden;
+  transition: background var(--motion-fast);
+}
+.action-btn .material-symbols-rounded { font-size: 22px; }
+.action-btn:hover { background: color-mix(in srgb, var(--md-on-surface) 8%, transparent); }
+.action-btn.select:hover { background: color-mix(in srgb, var(--md-success) 15%, transparent); color: var(--md-success); }
+.action-btn.select { border: 1px solid var(--md-outline-variant); }
+.action-btn.select.active { background: var(--md-success); color: #fff; border-color: transparent; }
+
+@media (max-width: 599px) {
+  .current-card { flex-direction: column; align-items: stretch; }
+  .current-values { flex-direction: column; gap: 12px; }
+  .data-table-wrap { background: transparent; box-shadow: none; border-radius: 0; }
+  .data-table thead { display: none; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: 100%; }
+  .data-table tr {
+    background: var(--md-surface-container-low);
+    border-radius: var(--shape-md);
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    box-shadow: var(--elev-1);
+    cursor: pointer; /* 整行可点击 */
+    transition: background var(--motion-fast), transform var(--motion-fast);
+    position: relative;
+  }
+  .data-table tr:hover { background: var(--md-surface-container); }
+  .data-table tr:active { transform: scale(0.98); }
+  .data-table tr.current-row {
+    background: color-mix(in srgb, var(--md-primary) 14%, var(--md-surface-container));
+    box-shadow: var(--elev-2);
+  }
+  /* 行右边缘添加“点击选择”提示箭头（用 Unicode 不依赖 Material Symbols 字体加载） */
+  .data-table tr:not(.current-row)::after {
+    content: '❯';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: var(--md-on-surface-variant);
+    opacity: 0.55;
+    font-weight: 600;
+  }
+  .data-table td {
+    padding: 2px 0; border: none;
+    display: flex; justify-content: space-between; gap: 12px; align-items: center;
+    font-size: 0.8rem;
+  }
+  /* 隐藏「行号」一列，节省空间 */
+  .data-table td.row-num { display: none; }
+  .data-table td::before {
+    content: attr(data-label);
+    color: var(--md-on-surface-variant);
+    font-size: 0.65rem;
+    flex-shrink: 0;
+    min-width: 56px;
+  }
+  .data-table td.action-cell { justify-content: flex-end; padding-right: 28px; }
+  .data-table td.action-cell::before { display: none; }
+}

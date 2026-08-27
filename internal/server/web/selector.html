@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="EDT - VLess 订阅管理 · 节点配置 / 优选 IP / 订阅转换">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FEF7FF">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141218">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>EDT · 优选 IP</title>
+  <!-- 早期主题应用 -->
+  <script>
+  (function(){
+    try {
+      var m = localStorage.getItem('edt-theme') || 'system';
+      var d = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+    } catch(e) {}
+  })();
+  </script>
+  <link rel="preconnect" href="https://fonts.font.im">
+  <link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded"></noscript>
+  <link rel="stylesheet" href="https://fonts.font.im/css?family=Roboto+Flex">
+  <link rel="stylesheet" href="/assets/css/m3e.css">
+  <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
+  <script src="/assets/vendor/theme.bundle.js"></script>
+  <link rel="stylesheet" href="/assets/css/selector.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <div class="bg-decor"><div class="orb-extra"></div></div>
+  <div class="app-shell">
+    <header class="top-app-bar" data-app-bar></header>
+    <main class="page-main">
+      <section class="hero fade-in">
+        <h1 class="headline-medium" data-i18n="selector_title">优选 IP</h1>
+        <p class="body-medium text-on-surface-variant mt-2" data-i18n="selector_subtitle">选择当前生效的优选 IP 与前缀 · 写入 pre_ip.txt</p>
+      </section>
+
+      <!-- 当前生效卡片 -->
+      <div class="current-card card filled fade-in" id="currentCard">
+        <div class="current-main">
+          <div class="current-label label-small text-on-surface-variant" data-i18n="current_effective">当前生效</div>
+          <div class="current-values">
+            <div class="cv-item">
+              <span class="material-symbols-rounded text-primary">label</span>
+              <div>
+                <div class="label-small text-on-surface-variant" data-i18n="prefix">前缀</div>
+                <div class="title-medium" id="currentPre">-</div>
+              </div>
+            </div>
+            <div class="cv-item">
+              <span class="material-symbols-rounded text-primary">router</span>
+              <div>
+                <div class="label-small text-on-surface-variant">IP</div>
+                <div class="title-medium cell-mono" id="currentIp">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-filled-tonal" id="customBtn">
+          <span class="material-symbols-rounded">edit</span><span data-i18n="customize">自定义</span>
+        </button>
+      </div>
+
+      <!-- 工具栏 -->
+      <div class="toolbar card outlined fade-in">
+        <div class="toolbar-info">
+          <span class="badge success" id="countBadge">0 个节点</span>
+        </div>
+        <div class="toolbar-actions">
+          <button class="btn btn-tonal" id="refreshBtn"><span class="material-symbols-rounded">refresh</span><span data-i18n="refresh">刷新</span></button>
+          <button class="btn btn-outline" id="sortBtn"><span class="material-symbols-rounded">swap_vert</span><span data-i18n="sort">排序</span></button>
+        </div>
+      </div>
+
+      <!-- 表格 -->
+      <div class="data-table-wrap fade-in">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-i18n="th_row_num">行号</th>
+              <th data-i18n="th_proxy_ip">ProxyIP</th>
+              <th data-i18n="th_yx_ip">优选 IP</th>
+              <th data-i18n="th_name">名称</th>
+              <th data-i18n="th_actions">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="5" class="text-center text-on-surface-variant" style="padding:48px;">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+    <nav class="nav-bar" data-nav></nav>
+  </div>
+
+  <!-- 自定义 dialog -->
+  <div class="dialog-scrim" id="customScrim"></div>
+  <div class="dialog" id="customDialog">
+    <div class="dialog-title" data-i18n="custom_title">自定义优选 IP</div>
+    <div class="dialog-content">
+      <div class="text-field filled mb-2">
+        <label>前缀</label>
+        <input type="text" id="customPre" placeholder="例如：日本 - " data-i18n-placeholder data-i18n="custom_pre_ph">
+      </div>
+      <div class="text-field filled">
+        <label>IP 地址</label>
+        <input type="text" id="customIp" placeholder="1.2.3.4 或域名" data-i18n-placeholder data-i18n="custom_ip_ph">
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-text" id="customCancel">取消</button>
+      <button class="btn btn-filled" id="customOk"><span data-i18n="determine">确定</span></button>
+    </div>
+  </div>
+
+  <script type="module" src="/assets/js/selector.js"></script>
+</body>
+</html>

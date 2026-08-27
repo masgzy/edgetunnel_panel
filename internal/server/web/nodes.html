@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="EDT - VLess 订阅管理 · 节点配置 / 优选 IP / 订阅转换">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FEF7FF">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141218">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>EDT · 节点配置</title>
+  <!-- 早期主题应用 -->
+  <script>
+  (function(){
+    try {
+      var m = localStorage.getItem('edt-theme') || 'system';
+      var d = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+    } catch(e) {}
+  })();
+  </script>
+  <link rel="preconnect" href="https://fonts.font.im">
+  <link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded"></noscript>
+  <link rel="stylesheet" href="https://fonts.font.im/css?family=Roboto+Flex">
+  <link rel="stylesheet" href="/assets/css/m3e.css">
+  <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
+  <script src="/assets/vendor/theme.bundle.js"></script>
+  <link rel="stylesheet" href="/assets/css/nodes.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <div class="bg-decor"><div class="orb-extra"></div></div>
+  <div class="app-shell">
+    <header class="top-app-bar" data-app-bar></header>
+    <main class="page-main">
+      <section class="hero fade-in">
+        <h1 class="headline-medium" data-i18n="nodes_title">节点配置</h1>
+        <p class="body-medium text-on-surface-variant mt-2" data-i18n="nodes_subtitle">管理 vless.txt 节点列表 · 支持 增删改查、批量添加、拖拽排序</p>
+        <div class="shortcut-hints">
+          <span class="shortcut"><kbd>/</kbd> 搜索</span>
+          <span class="shortcut"><kbd>N</kbd> 新建</span>
+          <span class="shortcut"><kbd>S</kbd> 排序</span>
+          <span class="shortcut"><kbd>Esc</kbd> 退出</span>
+          <span class="shortcut"><kbd>Del</kbd> 删除选中</span>
+        </div>
+      </section>
+
+      <!-- 工具栏 -->
+      <div class="toolbar card outlined fade-in">
+        <div class="toolbar-info">
+          <span class="badge success" id="countBadge">0 个节点</span>
+          <span class="body-small text-on-surface-variant" id="lastUpdate">未加载</span>
+        </div>
+        <div class="search-box">
+          <span class="material-symbols-rounded search-icon">search</span>
+          <input type="text" id="searchInput" placeholder="搜索名称 / IP / 优选 IP…" data-i18n-placeholder data-i18n="search_placeholder" autocomplete="off">
+          <button class="icon-btn search-clear hidden" id="searchClear" aria-label="清除"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="toolbar-actions">
+          <button class="btn btn-tonal" id="refreshBtn"><span class="material-symbols-rounded">refresh</span><span data-i18n="refresh">刷新</span></button>
+          <button class="btn btn-filled" id="addBtn"><span class="material-symbols-rounded">add</span><span data-i18n="add">添加</span></button>
+          <button class="btn btn-outline" id="batchBtn"><span class="material-symbols-rounded">playlist_add</span><span data-i18n="batch">批量</span></button>
+          <button class="btn btn-outline" id="importBtn"><span class="material-symbols-rounded">file_download</span><span data-i18n="import">导入</span></button>
+          <button class="btn btn-outline" id="exportBtn"><span class="material-symbols-rounded">file_upload</span><span data-i18n="export">导出</span></button>
+          <button class="btn btn-outline" id="sortBtn"><span class="material-symbols-rounded">swap_vert</span><span data-i18n="sort">排序</span></button>
+          <button class="btn btn-outline" id="selectBtn"><span class="material-symbols-rounded">checklist</span><span data-i18n="select">选择</span></button>
+        </div>
+      </div>
+
+      <!-- 表格 -->
+      <div class="data-table-wrap fade-in" id="tableWrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-i18n="th_row_num">行号</th>
+              <th data-i18n="th_proxy_ip">ProxyIP</th>
+              <th data-i18n="th_yx_ip">优选 IP</th>
+              <th data-i18n="th_name">名称</th>
+              <th data-i18n="th_actions">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="5" class="text-center text-on-surface-variant" style="padding:48px;">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 选择模式操作栏 -->
+      <div class="select-bar hidden" id="selectBar">
+        <span class="select-count" id="selectCount">已选 0 项</span>
+        <div class="select-actions">
+          <button class="btn btn-tonal" id="selectAllBtn"><span class="material-symbols-rounded">select_all</span><span data-i18n="select_all">全选</span></button>
+          <button class="btn btn-filled-tonal" id="batchEditBtn"><span class="material-symbols-rounded">edit_note</span><span data-i18n="batch_edit">批量编辑</span></button>
+          <button class="btn btn-danger" id="deleteSelectedBtn"><span class="material-symbols-rounded">delete</span><span data-i18n="delete_selected">删除选中</span></button>
+          <button class="btn btn-text" id="exitSelectBtn"><span data-i18n="exit">退出</span></button>
+        </div>
+      </div>
+    </main>
+
+    <!-- FAB 添加（移动端） -->
+    <button class="fab" id="fabAdd" aria-label="添加节点">
+      <span class="material-symbols-rounded">add</span>
+    </button>
+
+    <!-- 节点详情抽屉 -->
+    <div class="drawer-scrim hidden" id="drawerScrim"></div>
+    <aside class="detail-drawer hidden" id="detailDrawer">
+      <div class="drawer-header">
+        <h3 class="drawer-title">节点详情</h3>
+        <button class="icon-btn" id="drawerClose" aria-label="关闭"><span class="material-symbols-rounded">close</span></button>
+      </div>
+      <div class="drawer-content" id="drawerContent">
+        <p class="body-small text-on-surface-variant">点击节点行查看详情</p>
+      </div>
+      <div class="drawer-actions">
+        <button class="btn btn-filled" id="drawerEdit"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存修改</span></button>
+        <button class="btn btn-tonal" id="drawerSelect"><span class="material-symbols-rounded">check_circle</span><span data-i18n="set_preferred">设为优选</span></button>
+      </div>
+    </aside>
+
+    <nav class="nav-bar" data-nav></nav>
+  </div>
+
+  <!-- 批量添加 dialog -->
+  <div class="dialog-scrim" id="batchScrim"></div>
+  <div class="dialog" id="batchDialog">
+    <div class="dialog-title" data-i18n="batch_add_title">批量添加节点</div>
+    <div class="dialog-content">
+      <div class="text-field filled">
+        <label>配置名称（所有节点共用）</label>
+        <input type="text" id="batchName" placeholder="例如：日本节点">
+      </div>
+      <div class="text-field filled">
+        <label>IP 地址列表（每行一个）</label>
+        <textarea id="batchIps" rows="6" placeholder="192.168.1.1&#10;192.168.1.2&#10;192.168.1.3"></textarea>
+      </div>
+      <div class="text-field filled">
+        <label>优选 IP（可选，应用到所有）</label>
+        <input type="text" id="batchYxIp" placeholder="可选">
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-text" id="batchCancel">取消</button>
+      <button class="btn btn-filled" id="batchOk">添加</button>
+    </div>
+  </div>
+
+  <!-- 导入 dialog -->
+  <div class="dialog-scrim" id="importScrim"></div>
+  <div class="dialog" id="importDialog">
+    <div class="dialog-title" data-i18n="import_title">导入节点</div>
+    <div class="dialog-content">
+      <p class="body-small text-on-surface-variant mb-4">粘贴 vless:// 链接（每行一个，支持 base64 整体编码）：</p>
+      <div class="text-field filled">
+        <label>vless:// 链接列表</label>
+        <textarea id="importText" rows="8" placeholder="vless://uuid@host:port/?type=ws&security=tls&path=...&host=...&sni=...#名称&#10;vless://..."></textarea>
+      </div>
+      <div class="text-field">
+        <label>重复处理</label>
+        <select id="importMode">
+          <option value="skip">跳过重复（默认）</option>
+          <option value="overwrite">覆盖重复</option>
+          <option value="duplicate">允许重复</option>
+        </select>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-text" id="importCancel">取消</button>
+      <button class="btn btn-filled" id="importOk">导入</button>
+    </div>
+  </div>
+
+  <!-- 批量编辑 dialog -->
+  <div class="dialog-scrim" id="batchEditScrim"></div>
+  <div class="dialog" id="batchEditDialog">
+    <div class="dialog-title" data-i18n="batch_edit_title">批量编辑选中节点</div>
+    <div class="dialog-content">
+      <p class="body-small text-on-surface-variant mb-4">留空的字段保持原值不变，仅修改填写的字段。</p>
+      <div class="text-field filled">
+        <label>名称（应用到所有选中）</label>
+        <input type="text" id="batchEditName" placeholder="留空保持原值">
+      </div>
+      <div class="text-field filled">
+        <label>ProxyIP（应用到所有选中）</label>
+        <input type="text" id="batchEditIp" placeholder="留空保持原值">
+      </div>
+      <div class="text-field filled">
+        <label>优选 IP（应用到所有选中）</label>
+        <input type="text" id="batchEditYxIp" placeholder="留空保持原值">
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-text" id="batchEditCancel">取消</button>
+      <button class="btn btn-filled" id="batchEditOk">应用到选中</button>
+    </div>
+  </div>
+
+  <!-- 快捷键帮助 dialog -->
+  <div class="dialog-scrim" id="helpScrim"></div>
+  <div class="dialog" id="helpDialog">
+    <div class="dialog-title" data-i18n="t_help_title">键盘快捷键</div>
+    <div class="dialog-content">
+      <div class="shortcut-help-list">
+        <div class="shortcut-help-row"><kbd>/</kbd><span>聚焦搜索</span></div>
+        <div class="shortcut-help-row"><kbd>N</kbd><span>新建节点</span></div>
+        <div class="shortcut-help-row"><kbd>S</kbd><span>切换排序模式</span></div>
+        <div class="shortcut-help-row"><kbd>Esc</kbd><span>退出当前模式</span></div>
+        <div class="shortcut-help-row"><kbd>Del</kbd><span>删除选中（选择模式下）</span></div>
+        <div class="shortcut-help-row"><kbd>?</kbd><span>显示本帮助</span></div>
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-filled" id="helpOk">知道了</button>
+    </div>
+  </div>
+
+  <script type="module" src="/assets/js/nodes.js"></script>
+</body>
+</html>

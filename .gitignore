@@ -1,0 +1,19 @@
+# 编译产物
+edt
+edt.exe
+edt-bin
+package/
+dist/
+*.part
+
+# 本地配置与运行时数据（含口令等敏感信息，绝不入库）
+config.yml
+config.yml.bak
+/data/
+
+# subconverter 第三方程序与规则包（由 ./install_subconverter.sh 或控制台在线安装）
+/bin/subconverter/
+
+# 日志与临时文件
+*.log
+*.tmp

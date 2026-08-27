@@ -1,0 +1,57 @@
+# CI：push / PR 到任意分支时触发
+# - 按 go.mod 声明的兼容底线工具链（Go 1.21.x）编译，保证最低版本可用
+# - 三平台冒烟（ubuntu / macos / windows），gofmt / vet / build
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      # actions/checkout v7.0.1（2026-08 经 GitHub API + releases/latest 双通道核验）
+      - uses: actions/checkout@v7
+
+      # actions/setup-go v7.0.0（同上核验）；无 toolchain 指令时按 go.mod 的 go 指令取版本，
+      # 即用最低兼容工具链 1.21.x 编译 = 常驻底线回归
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: gofmt check
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "::error::以下文件需要 gofmt:$out"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build (linux/macos)
+        if: runner.os != 'Windows'
+        run: go build -trimpath -o edt-check .
+
+      - name: Build (windows)
+        if: runner.os == 'Windows'
+        run: go build -trimpath -o edt-check.exe .
