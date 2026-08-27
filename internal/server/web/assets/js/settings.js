@@ -16,7 +16,8 @@ async function init() {
   bindRefreshLogs();
   bindSCConfig();
   bindGeneralSettings();
-  await Promise.all([loadSCConfig(), loadGeneralSettings(), loadConfigFile(), loadLogs()]);
+  bindGenSettings();
+  await Promise.all([loadSCConfig(), loadGeneralSettings(), loadGenSettings(), loadConfigFile(), loadLogs()]);
   connectLogWS();
 }
 if (document.readyState === 'loading') {
@@ -203,6 +204,168 @@ function bindGeneralSettings() {
           history_limit: historyLimit,
           log_lines: logLines,
         }),
+      });
+      ttoast('t_config_saved');
+    } catch (err) {
+      ttoast('t_config_save_fail', err.message);
+    }
+  });
+}
+
+// ---- 生成配置（协议与设置） ----
+let genAutoOn = true;
+
+function genReadManualFromUI() {
+  return {
+    protocol: document.getElementById('genProtocol').value,
+    transport: document.getElementById('genTransport').value,
+    grpc_mode: document.getElementById('genGrpcMode').value,
+    grpc_user_agent: document.getElementById('genGrpcUA').value.trim(),
+    skip_cert_verify: document.getElementById('genSkipCert').checked,
+    enable_0rtt: document.getElementById('gen0rtt').checked,
+    fragment: document.getElementById('genFragment').value,
+    random_path: document.getElementById('genRandomPath').checked,
+    ech: document.getElementById('genECH').checked,
+    ech_dns: document.getElementById('genEchDNS').value.trim(),
+    ech_sni: document.getElementById('genEchSNI').value.trim(),
+    fingerprint: document.getElementById('genFingerprint').value,
+  };
+}
+
+function genFillManualUI(gs) {
+  const g = gs || {};
+  document.getElementById('genProtocol').value = g.protocol || 'vless';
+  document.getElementById('genTransport').value = g.transport || 'ws';
+  document.getElementById('genGrpcMode').value = g.grpc_mode || 'gun';
+  document.getElementById('genGrpcUA').value = g.grpc_user_agent || '';
+  document.getElementById('genSkipCert').checked = !!g.skip_cert_verify;
+  document.getElementById('gen0rtt').checked = g.enable_0rtt !== false;
+  document.getElementById('genFragment').value = g.fragment || '';
+  document.getElementById('genRandomPath').checked = !!g.random_path;
+  document.getElementById('genECH').checked = !!g.ech;
+  document.getElementById('genEchDNS').value = g.ech_dns || '';
+  document.getElementById('genEchSNI').value = g.ech_sni || '';
+  document.getElementById('genFingerprint').value = g.fingerprint || 'chrome';
+  updateGenRows();
+}
+
+function updateGenRows() {
+  const transport = document.getElementById('genTransport').value;
+  document.getElementById('genGrpcRow').hidden = transport !== 'grpc';
+  document.getElementById('genEchRow').hidden = !document.getElementById('genECH').checked;
+}
+
+function renderGenPanelChips(panelGS, hosts, ok) {
+  const box = document.getElementById('genPanelChips');
+  const statusEl = document.getElementById('genPanelStatus');
+  const hostsEl = document.getElementById('genPanelHosts');
+  if (!ok || !panelGS) {
+    box.innerHTML = '';
+    statusEl.className = 'body-small mt-2 text-on-surface-variant';
+    statusEl.textContent = i18n.t('gen_panel_unavailable');
+    hostsEl.textContent = '';
+    return;
+  }
+  statusEl.textContent = '';
+  const labels = {
+    protocol: i18n.t('gen_protocol'),
+    transport: i18n.t('gen_transport'),
+    fingerprint: i18n.t('gen_fingerprint'),
+    fragment: i18n.t('gen_fragment'),
+  };
+  const values = [
+    [labels.protocol, panelGS.protocol || '-'],
+    [labels.transport, panelGS.transport || '-'],
+    [labels.fingerprint, panelGS.fingerprint || '-'],
+    [labels.fragment, panelGS.fragment ? panelGS.fragment : i18n.t('gen_frag_off')],
+  ];
+  box.innerHTML = values.map(([k, v]) =>
+    `<span class="chip">${escapeHtml(k)}: ${escapeHtml(v)}</span>`
+  ).join('') + buildSwitchChips(panelGS);
+  hostsEl.textContent = hosts && hosts.length ? i18n.t('gen_panel_hosts') + ': ' + hosts.join(', ') : '';
+}
+
+function buildSwitchChips(g) {
+  const labels = { skip: i18n.t('gen_skip_cert'), rtt: '0-RTT', rnd: i18n.t('gen_random_path'), ech: 'ECH' };
+  return Object.entries({
+    skip: g.skip_cert_verify,
+    rtt: g.enable_0rtt,
+    rnd: g.random_path,
+    ech: g.ech,
+  }).filter(([, on]) => on).map(([key]) => `<span class="chip">${labels[key]}</span>`).join('');
+}
+
+async function refreshGenPanel(then) {
+  try {
+    const resp = await api('/api/gen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: true }),
+    });
+    if (resp.panel_ok) ttoast('t_config_saved');
+    else toast(i18n.t('gen_panel_unavailable'));
+    then && then(resp);
+  } catch (err) {
+    ttoast('t_config_save_fail', err.message);
+  }
+}
+
+async function loadGenSettings() {
+  try {
+    const st = await api('/api/gen');
+    genAutoOn = st.auto !== false;
+    document.getElementById('genAuto').checked = genAutoOn;
+    genFillManualUI(st.manual || st.effective || {});
+    // 面板快照展示：接口未返回 panel 时，若 auto 开启尝试刷新一次
+    if (st.panel) {
+      renderGenPanelChips(st.panel, st.panel_hosts, true);
+      toggleGenManualHint(true);
+    } else {
+      renderGenPanelChips(null, null, false);
+      if (st.need_restart !== false && genAutoOn) {
+        // 订阅首次请求会自动拉面板；此处静默等待即可
+        toggleGenManualHint(false);
+      }
+    }
+    updateGenSourceUI(genAutoOn);
+  } catch (err) {
+    // 保持默认 UI
+  }
+}
+
+function toggleGenManualHint(panelOk) {
+  const el = document.getElementById('genPanelStatus');
+  if (!panelOk && !el.textContent) el.textContent = i18n.t('gen_panel_unavailable');
+}
+
+// 自动模式隐藏手动表单；关闭则展开手动设置。
+function updateGenSourceUI(auto) {
+  document.getElementById('genManualBox').hidden = !!auto;
+  const panelBox = document.getElementById('genPanelBox');
+  panelBox.style.display = auto ? '' : 'none';
+}
+
+function bindGenSettings() {
+  document.getElementById('genAuto').addEventListener('change', (e) => {
+    genAutoOn = e.target.checked;
+    updateGenSourceUI(genAutoOn);
+  });
+  document.getElementById('genTransport').addEventListener('change', updateGenRows);
+  document.getElementById('genECH').addEventListener('change', updateGenRows);
+  document.getElementById('genRefreshBtn')?.addEventListener('click', async () => {
+    await refreshGenPanel(async () => {
+      const st = await api('/api/gen');
+      renderGenPanelChips(st.panel, st.panel_hosts, st.panel_ok);
+    });
+  });
+  document.getElementById('genSaveBtn').addEventListener('click', async () => {
+    try {
+      const body = { auto: document.getElementById('genAuto').checked };
+      if (!body.auto) body.manual = genReadManualFromUI();
+      await api('/api/gen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
       ttoast('t_config_saved');
     } catch (err) {

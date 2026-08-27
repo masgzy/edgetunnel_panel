@@ -140,6 +140,7 @@ func registerAPIRoutes(mux *http.ServeMux, deps *Deps) {
 		"/api/sc-config":    deps.scConfigHandler,
 		"/api/sc-install":   deps.scInstallHandler,
 		"/api/settings":     deps.settingsHandler,
+		"/api/gen":          deps.genHandler,
 		"/api/restore":      deps.restoreHandler,
 		"/api/logs":         deps.logsHandler,
 	}
@@ -775,7 +776,191 @@ func (d *Deps) settingsSave(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// readConfigYAMLMap 读取根目录 config.yml 并解析为通用映射（连同原始字节供写回前备份）。
+// genHandler GET/POST /api/gen - 生成配置（自动获取开关 + 手动默认值 + 面板快照）。
+//
+// GET：返回磁盘配置态（gen 节）、面板快照态与运行时生效态；
+// POST：保存 auto_from_panel / manual 到 config.yml（写前备份，重启后生效），
+// 带 refresh=true 时顺带强制重拉一次面板 config.json 刷新快照。
+func (d *Deps) genHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		d.genSave(w, r)
+		return
+	}
+
+	// 磁盘态
+	_, _, cfgMap, err := d.readConfigYAMLMap()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	auto, manual, _ := readGenSectionFromMap(cfgMap)
+
+	resp := map[string]interface{}{
+		"auto":         auto,
+		"manual":       manual,
+		"effective":    d.SubscriptionSvc.EffectiveGenSettings(),
+		"panel_ok":     d.SubscriptionSvc.PanelGenAvailable(),
+		"need_restart": true,
+	}
+	if panelGS, hosts, ok := d.UUIDService.GenPanelSnapshot(); ok {
+		resp["panel"] = panelGS
+		resp["panel_hosts"] = hosts
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// genSave 处理 POST：把生成配置写入 config.yml 的 gen 节。
+func (d *Deps) genSave(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Auto    *bool               `json:"auto"`
+		Refresh bool                `json:"refresh"`
+		Manual  *config.GenSettings `json:"manual"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	refreshed := false
+	if req.Refresh && d.UUIDService != nil {
+		// 清掉日缓存强制重拉；UUID 与快照同源一并刷新。
+		if err := d.UUIDService.Clear(); err == nil {
+			if _, gerr := d.UUIDService.Get(); gerr == nil {
+				refreshed = true
+			}
+		}
+	}
+	if req.Auto == nil && req.Manual == nil {
+		panelGS, hosts, ok := d.UUIDService.GenPanelSnapshot()
+		resp := map[string]interface{}{"message": "nothing to save", "refreshed": refreshed}
+		if ok {
+			resp["panel"] = panelGS
+			resp["panel_hosts"] = hosts
+		}
+		resp["panel_ok"] = ok
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+
+	configPath, raw, cfgMap, err := d.readConfigYAMLMap()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// 在现有磁盘值基础上做增量修改（缺省补齐默认行）。
+	currentAuto, currentManual, haveGen := readGenSectionFromMap(cfgMap)
+	if !haveGen {
+		def := config.DefaultGenSettings()
+		currentAuto = true
+		currentManual = def
+	}
+	if req.Auto != nil {
+		currentAuto = *req.Auto
+	}
+	if req.Manual != nil {
+		currentManual = req.Manual.Normalized()
+	}
+
+	section := map[string]interface{}{
+		"auto_from_panel": currentAuto,
+		"manual": map[string]interface{}{
+			"protocol":         currentManual.Protocol,
+			"transport":        currentManual.Transport,
+			"grpc_mode":        currentManual.GRPCMode,
+			"grpc_user_agent":  currentManual.GRPCUserAgent,
+			"skip_cert_verify": currentManual.SkipCertVerify,
+			"enable_0rtt":      currentManual.Enable0RTT,
+			"fragment":         currentManual.Fragment,
+			"random_path":      currentManual.RandomPath,
+			"ech":              currentManual.ECH,
+			"ech_dns":          currentManual.ECHDNS,
+			"ech_sni":          currentManual.ECHSNI,
+			"fingerprint":      currentManual.Fingerprint,
+		},
+	}
+	cfgMap["gen"] = section
+
+	if err := writeConfigYAMLMap(configPath, raw, cfgMap); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":   "gen settings saved, restart to take effect",
+		"auto":      currentAuto,
+		"manual":    currentManual,
+		"refreshed": refreshed,
+	})
+}
+
+// readGenSectionFromMap 从 config.yml 通用映射中提取 gen 节（宽松：缺失/非法回落默认）。
+func readGenSectionFromMap(cfgMap map[string]interface{}) (auto bool, manual config.GenSettings, ok bool) {
+	manual = config.DefaultGenSettings()
+	auto = true
+	raw, present := cfgMap["gen"]
+	if !present || raw == nil {
+		return auto, manual, false
+	}
+	m, isMap := raw.(map[string]interface{})
+	if !isMap {
+		return auto, manual, false
+	}
+	if v, has := m["auto_from_panel"]; has {
+		if b, err := yamlToBool(v); err == nil {
+			auto = b
+		}
+	}
+	mm, has := m["manual"].(map[string]interface{})
+	if !has {
+		return auto, manual, true
+	}
+	gs := config.DefaultGenSettings()
+	str := func(key string, dst *string) {
+		if v, has := mm[key]; has && v != nil {
+			*dst = fmt.Sprintf("%v", v)
+		}
+	}
+	bl := func(key string, dst *bool) {
+		if v, has := mm[key]; has {
+			if b, err := yamlToBool(v); err == nil {
+				*dst = b
+			}
+		}
+	}
+	str("protocol", &gs.Protocol)
+	str("transport", &gs.Transport)
+	str("grpc_mode", &gs.GRPCMode)
+	str("grpc_user_agent", &gs.GRPCUserAgent)
+	str("ech_dns", &gs.ECHDNS)
+	str("ech_sni", &gs.ECHSNI)
+	str("fragment", &gs.Fragment)
+	str("fingerprint", &gs.Fingerprint)
+	bl("skip_cert_verify", &gs.SkipCertVerify)
+	bl("enable_0rtt", &gs.Enable0RTT)
+	bl("random_path", &gs.RandomPath)
+	bl("ech", &gs.ECH)
+	manual = gs.Normalized()
+	return auto, manual, true
+}
+
+// yamlToBool 宽松布尔转换（兼容 true/"1"/bool 等）。
+func yamlToBool(v interface{}) (bool, error) {
+	switch t := v.(type) {
+	case bool:
+		return t, nil
+	case string:
+		switch strings.ToLower(strings.TrimSpace(t)) {
+		case "1", "true", "yes", "on":
+			return true, nil
+		case "0", "false", "no", "off":
+			return false, nil
+		}
+	case int:
+		return t != 0, nil
+	}
+	return false, fmt.Errorf("invalid bool: %v", v)
+}
+
 func (d *Deps) readConfigYAMLMap() (configPath string, raw []byte, cfgMap map[string]interface{}, err error) {
 	configPath = filepath.Join(d.Cfg.RootDir, "config.yml")
 	raw, err = os.ReadFile(configPath)

@@ -230,7 +230,12 @@ func (s *scSupervisor) TriggerRestart() {
 }
 
 // Stop 优雅停止监督者与子进程（先 SIGINT，3s 超时后 Kill）。
+// 空接收者安全：subconverter 关闭（off）时不构造监督者，
+// 启动失败路径仍会调用本方法。
 func (s *scSupervisor) Stop() {
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	s.stopped = true
 	cmd := s.cmd
@@ -296,6 +301,7 @@ func newApp(cfg *config.RuntimeConfig) *app {
 		cfg.EncodeSubscriptionBase64, cfg.DataSources,
 	)
 	subService.SetUserinfoExpire(cfg.UserinfoExpire)
+	subService.SetGenConfig(cfg.GenAutoFromPanel, cfg.GenManual)
 	return &app{
 		cfg:      cfg,
 		cfgStore: cfgStore,

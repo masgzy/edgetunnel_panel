@@ -151,6 +151,107 @@
         <button class="btn btn-filled mt-4" id="settingsSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
       </div>
 
+      <!-- 生成配置（协议与设置） -->
+      <div class="card outlined fade-in">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">build_circle</span></div>
+          <div class="titles"><div class="title" data-i18n="gen_title">生成配置</div><div class="subtitle" data-i18n="gen_subtitle">订阅链接的协议与连接参数</div></div>
+        </div>
+        <label class="gen-auto-row text-field">
+          <m3e-switch id="genAuto" checked aria-label="自动获取配置"></m3e-switch>
+          <span data-i18n="gen_auto_label">自动获取配置(协议，设置)</span>
+        </label>
+        <p class="body-small text-on-surface-variant" data-i18n="gen_auto_hint">勾选时优从面板 config.json 读取；面板不可用时回落手动默认值。</p>
+
+        <!-- 面板快照摘要（auto 勾选或查看时显示） -->
+        <div id="genPanelBox" class="mt-4">
+          <div class="flex gap-2" style="align-items:center;flex-wrap:wrap;">
+            <span class="body-small text-on-surface-variant" data-i18n="gen_panel_source">配置来源：面板</span>
+            <button class="chip" id="genRefreshBtn"><span class="material-symbols-rounded">refresh</span><span data-i18n="refresh">刷新</span></button>
+          </div>
+          <div class="chip-list mt-2" id="genPanelChips"></div>
+          <p class="body-small text-on-surface-variant mt-2" id="genPanelHosts"></p>
+          <p class="body-small mt-2" id="genPanelStatus"></p>
+        </div>
+
+        <!-- 手动设置 -->
+        <div id="genManualBox" hidden>
+          <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+            <div class="text-field" style="min-width:160px;">
+              <label data-i18n="gen_protocol">协议</label>
+              <select id="genProtocol">
+                <option value="vless">VLESS</option>
+                <option value="trojan">Trojan</option>
+                <option value="ss" data-i18n="gen_ss">Shadowsocks</option>
+              </select>
+            </div>
+            <div class="text-field" style="min-width:180px;">
+              <label data-i18n="gen_transport">传输</label>
+              <select id="genTransport">
+                <option value="ws">WebSocket</option>
+                <option value="xhttp">XHTTP</option>
+                <option value="grpc">gRPC</option>
+              </select>
+            </div>
+            <div class="text-field" style="min-width:140px;">
+              <label data-i18n="gen_fingerprint">浏览器指纹</label>
+              <select id="genFingerprint">
+                <option value="chrome">chrome</option>
+                <option value="firefox">firefox</option>
+                <option value="safari">safari</option>
+                <option value="ios">ios</option>
+                <option value="android">android</option>
+                <option value="edge">edge</option>
+                <option value="360">360</option>
+                <option value="qq">qq</option>
+                <option value="random">random</option>
+                <option value="randomized">randomized</option>
+              </select>
+            </div>
+            <div class="text-field" style="min-width:200px;">
+              <label data-i18n="gen_fragment">TLS 分片</label>
+              <select id="genFragment">
+                <option value="" data-i18n="gen_frag_off">关闭</option>
+                <option value="shadowrocket">Shadowrocket</option>
+                <option value="happ">Happ</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-2 mt-2" id="genGrpcRow" style="flex-wrap:wrap;" hidden>
+            <div class="text-field" style="min-width:120px;">
+              <label>gRPC Mode</label>
+              <select id="genGrpcMode">
+                <option value="gun">gun</option>
+                <option value="multi">multi</option>
+              </select>
+            </div>
+            <div class="text-field" style="flex:1;min-width:200px;">
+              <label data-i18n="gen_grpc_ua">gRPC User-Agent</label>
+              <input type="text" id="genGrpcUA" placeholder="Mozilla/5.0">
+            </div>
+          </div>
+          <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+            <label class="gen-check-row"><m3e-switch id="genSkipCert"></m3e-switch><span data-i18n="gen_skip_cert">跳过证书验证</span></label>
+            <label class="gen-check-row"><m3e-switch id="gen0rtt" checked></m3e-switch><span data-i18n="gen_0rtt">启用 0-RTT</span></label>
+            <label class="gen-check-row"><m3e-switch id="genRandomPath"></m3e-switch><span data-i18n="gen_random_path">随机伪装路径</span></label>
+          </div>
+          <label class="gen-check-row mt-2"><m3e-switch id="genECH"></m3e-switch><span>ECH</span></label>
+          <div class="flex gap-2 mt-2" id="genEchRow" hidden style="flex-wrap:wrap;">
+            <div class="text-field" style="flex:1;min-width:220px;">
+              <label data-i18n="gen_ech_dns">ECH Config DNS</label>
+              <input type="text" id="genEchDNS" placeholder="https://doh.example/dns-query">
+            </div>
+            <div class="text-field" style="min-width:160px;">
+              <label data-i18n="gen_ech_sni">ECH SNI（可选）</label>
+              <input type="text" id="genEchSNI">
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-filled mt-4" id="genSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
+        <p class="body-small text-on-surface-variant mt-2" data-i18n="gen_save_hint">保存后需重启服务生效；手动模式下的取值仅作为面板不可用时的回落默认。</p>
+      </div>
+
       <!-- 配置文件编辑 -->
       <div class="card outlined fade-in">
         <div class="card-header">

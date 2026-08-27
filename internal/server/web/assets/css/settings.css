@@ -137,3 +137,14 @@
   /* 长说明区折叠为可滚动 */
   .sc-tip { max-height: 100px; overflow-y: auto; }
 }
+
+/* ---- 生成配置卡（gen） ---- */
+.gen-auto-row,
+.gen-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.gen-auto-row m3e-switch { min-width: 44px; }
+#genPanelChips { margin-top: 4px; }

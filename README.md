@@ -62,6 +62,9 @@ EDT 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudflare 边
 **订阅生成**
 - 多订阅模板（profiles）：不同域名、UUID 模式（动态 / 静态）、输出格式并存
 - UUID 动态模式对接远程面板每日刷新；支持一键清空重置
+- 生成配置：协议（VLESS / Trojan / Shadowsocks）与连接参数（传输、证书校验、
+  0-RTT、TLS 分片、随机伪装路径、ECH、浏览器指纹）可自动读取面板 config.json
+  或手动设置
 - 二维码展示订阅链接，手机扫码即用
 - mihomo（Clash Meta）配置生成：内置模板 + ACL4SSR ini 解析（ruleset / custom_proxy_group）
 - 订阅访问历史记录
@@ -193,6 +196,46 @@ subconverter:
 
 > 桥接说明：为让代理客户端无需登录即可拉取订阅，`/sub` 与 `/convert` 端点不对
 > 控制台会话做鉴权——订阅链接中的 UUID 即访问凭据。请像保管密码一样保管订阅链接。
+
+## 生成配置（协议与设置）
+
+订阅链接里的协议与连接参数（协议类型、传输方式、证书校验、0-RTT、TLS 分片、
+随机伪装路径、ECH、浏览器指纹）统一由「生成配置」管理，控制台
+**设置 → 生成配置** 提供「自动获取配置(协议，设置)」开关（默认勾选）：
+
+- **勾选（自动）**：优先读取远程面板 `admin/config.json` 中的同名字段
+  （协议类型 / 传输协议 / 跳过证书验证 / 启用0RTT / TLS分片 / 随机路径 /
+  ECH / Fingerprint），与面板侧设置保持一致；面板不可用时自动回落到手动默认值。
+- **取消勾选（手动）**：展开手动设置表单（协议三选、传输三选、指纹十选、
+  分片 Shadowrocket/Happ、gRPC 模式与 UA、ECH DNS/SNI 等），取值写入
+  `config.yml` 的 `gen` 节，仅作为面板不可用时的回落默认。
+
+对应的 `config.yml` 配置（全部字段可省略，省略即用内置缺省）：
+
+```yaml
+gen:
+  auto_from_panel: true     # 自动获取配置（协议，设置）
+  manual:                   # 手动模式默认值
+    protocol: vless         # vless | trojan | ss
+    transport: ws           # ws | xhttp | grpc
+    grpc_mode: gun          # gun | multi
+    skip_cert_verify: false # 跳过证书验证 → allowInsecure=1
+    enable_0rtt: true       # 0-RTT → 路径追加 ed=2560
+    fragment: ""            # "" | shadowrocket | happ
+    random_path: false      # 随机伪装路径前缀
+    ech: false              # ECH（需面板 Worker 同步开启）
+    fingerprint: chrome     # chrome/firefox/safari/ios/android/edge/360/qq/random/randomized
+```
+
+行为说明：
+
+- 保存后需重启服务生效（与端口、模板等配置一致）。
+- 协议切换对 Base64 订阅与 mihomo 订阅同时生效；trojan 用户名为
+  SHA-224(UUID)、SS 密码为 UUID（经 v2ray-plugin 承载 ws+tls），
+  与上游 edgetunnel 的订阅模板同构。
+- TLS 分片与 ECH 参数目前仅出现在分享链接中（mihomo 无对应标准字段）；
+  xhttp/gRPC 在 mihomo 侧需要较新内核支持。
+
 
 ## 鉴权与安全
 

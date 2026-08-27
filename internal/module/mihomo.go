@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"edt/internal/config"
 )
 
 // MihomoConfig mihomo 模块依赖。
@@ -26,6 +28,10 @@ type SubEntry struct {
 	YxIP    string // 优选 IP/域名（authority）
 	Domain  string // SNI / Host
 	Port    int    // 默认端口
+
+	// Gen 非空时按生成配置渲染（协议/传输/证书校验/指纹等）；
+	// nil 时保持历史行为：vless+ws+tls，路径固定带 ed=2560，指纹 chrome。
+	Gen *config.GenSettings
 }
 
 // SubWithTemplate 用模板替换生成单个节点 yaml 片段。
@@ -44,8 +50,9 @@ func SubWithTemplate(templatePath string, e SubEntry) (string, error) {
 	return content, nil
 }
 
-// SubFull 生成单个 vless+ws+tls 节点的 mihomo proxies 片段（yaml 缩进 0）。
-// 借鉴 subconverter 的 vless 节点结构，确保 mihomo 可直接加载。
+// SubFull 生成单个节点的 mihomo proxies 片段（yaml 缩进 0）。
+// 借鉴 subconverter 的节点结构，确保 mihomo 可直接加载；
+// e.Gen 非 nil 时协议/传输/证书/指纹跟随生成配置，否则维持历史 vless+ws 行为。
 //
 // 输出形如：
 //   - name: "🇯🇵 日本 NRT"
@@ -73,27 +80,79 @@ func SubFull(e SubEntry) string {
 		serverHost = h
 		serverPort = p
 	}
-	// proxyip 路径（与 vless 链接保持一致）
-	path := fmt.Sprintf("/proxyip=%s?ed=2560", e.ProxyIP)
-	if e.ProxyIP == "" || e.ProxyIP == "DIRECT" {
-		path = "/?ed=2560"
-	}
 
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("  - name: %q\n", e.Name))
-	b.WriteString("    type: vless\n")
 	b.WriteString(fmt.Sprintf("    server: %s\n", serverHost))
 	b.WriteString(fmt.Sprintf("    port: %d\n", serverPort))
-	b.WriteString(fmt.Sprintf("    uuid: %s\n", e.UUID))
 	b.WriteString("    udp: true\n")
-	b.WriteString("    tls: true\n")
-	b.WriteString(fmt.Sprintf("    servername: %s\n", e.Domain))
-	b.WriteString("    network: ws\n")
-	b.WriteString("    ws-opts:\n")
-	b.WriteString(fmt.Sprintf("      path: %s\n", path))
-	b.WriteString("      headers:\n")
-	b.WriteString(fmt.Sprintf("        Host: %s\n", e.Domain))
-	b.WriteString("    client-fingerprint: chrome\n")
+
+	g := e.Gen
+	if g == nil {
+		// 历史行为：vless + ws + tls + ed=2560 + chrome
+		path := fmt.Sprintf("/proxyip=%s?ed=2560", e.ProxyIP)
+		if e.ProxyIP == "" || e.ProxyIP == "DIRECT" {
+			path = "/?ed=2560"
+		}
+		b.WriteString("    type: vless\n")
+		b.WriteString(fmt.Sprintf("    uuid: %s\n", e.UUID))
+		b.WriteString("    tls: true\n")
+		b.WriteString(fmt.Sprintf("    servername: %s\n", e.Domain))
+		b.WriteString("    network: ws\n")
+		b.WriteString("    ws-opts:\n")
+		b.WriteString(fmt.Sprintf("      path: %s\n", path))
+		b.WriteString("      headers:\n")
+		b.WriteString(fmt.Sprintf("        Host: %s\n", e.Domain))
+		b.WriteString("    client-fingerprint: chrome\n")
+		return b.String()
+	}
+
+	gn := g.Normalized()
+	path := gn.TransportPath("edt", e.ProxyIP) // 与订阅链接同款路径组装
+	switch gn.Protocol {
+	case "ss":
+		b.WriteString("    type: ss\n")
+		b.WriteString(fmt.Sprintf("    cipher: %s\n", config.SSCipher))
+		b.WriteString(fmt.Sprintf("    password: %s\n", e.UUID))
+	case "trojan":
+		b.WriteString("    type: trojan\n")
+		b.WriteString(fmt.Sprintf("    password: %s\n", e.UUID))
+		b.WriteString("    tls: true\n")
+		b.WriteString(fmt.Sprintf("    servername: %s\n", e.Domain))
+	default: // vless
+		b.WriteString("    type: vless\n")
+		b.WriteString(fmt.Sprintf("    uuid: %s\n", e.UUID))
+		b.WriteString("    tls: true\n")
+		b.WriteString(fmt.Sprintf("    servername: %s\n", e.Domain))
+	}
+
+	transportName := gn.Transport
+	switch gn.Transport {
+	case "grpc":
+		serviceName, _, _ := strings.Cut(path, "?")
+		if serviceName == "" || serviceName == "/" {
+			serviceName = "/"
+		}
+		b.WriteString("    network: grpc\n")
+		b.WriteString("    grpc-opts:\n")
+		b.WriteString(fmt.Sprintf("      grpc-service-name: %s\n", serviceName))
+	default:
+		b.WriteString(fmt.Sprintf("    network: %s\n", transportName))
+		if transportName == "ws" {
+			b.WriteString("    ws-opts:\n")
+			b.WriteString(fmt.Sprintf("      path: %s\n", path))
+			b.WriteString("      headers:\n")
+			b.WriteString(fmt.Sprintf("        Host: %s\n", e.Domain))
+		}
+	}
+
+	if gn.SkipCertVerify {
+		b.WriteString("    skip-cert-verify: true\n")
+	}
+	fp := gn.Fingerprint
+	if fp != "" {
+		b.WriteString(fmt.Sprintf("    client-fingerprint: %s\n", fp))
+	}
 	return b.String()
 }
 

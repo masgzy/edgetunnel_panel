@@ -103,3 +103,24 @@ subconverter:
   bin: bin/subconverter/subconverter
   port: 25500
   # remote: https://api.v1.mk
+
+# 生成配置（可选）：订阅链接的协议与连接参数来源
+# auto_from_panel: 默认勾选的「自动获取配置(协议，设置)」；
+#   true 时优从面板 config.json 同名字段读取（协议类型/传输协议/跳过证书验证/
+#   启用0RTT/TLS分片/随机路径/ECH/Fingerprint…），拉取失败回落 manual。
+# manual: 取消自动后的手动默认值（全部字段可省略，省略即用下行缺省）
+gen:
+  auto_from_panel: true
+  manual:
+    protocol: vless          # vless | trojan | ss
+    transport: ws            # ws | xhttp | grpc
+    grpc_mode: gun           # gun | multi（transport=grpc 时生效）
+    grpc_user_agent: ""      # gRPC user-agent 元数据（可空）
+    skip_cert_verify: false  # 跳过证书验证 → allowInsecure=1
+    enable_0rtt: true        # 启用 0-RTT → 路径追加 ed=2560
+    fragment: ""             # "" | shadowrocket | happ
+    random_path: false       # 随机伪装路径前缀
+    ech: false               # ECH（需配合面板 Worker 开启 ECH 支持）
+    ech_dns: ""
+    ech_sni: ""
+    fingerprint: chrome      # chrome|firefox|safari|ios|android|edge|360|qq|random|randomized

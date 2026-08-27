@@ -11,14 +11,17 @@ import (
 	"sync"
 	"time"
 
+	"edt/internal/config"
 	"edt/internal/module"
 )
 
-// UUIDService 负责获取/缓存 UUID。
+// UUIDService 负责获取/缓存 UUID 与面板生成配置。
 //
-// 对接 EDT-Pages / BPB 型管理面板（remote.admin_url 指向 admin/config.json），
-// 同一次请求顺带提取面板上报的 Cloudflare Workers/Pages 用量（CF.Usage），
-// 供 Subscription-Userinfo 头展示真实用量而非伪造数字。
+// 对接 EDT-Pages / BPB 型管理面板（remote.admin_url 指向 admin/config.json）：
+//   - UUID：订阅凭据（dynamic 模式），按天缓存；
+//   - CF.Usage：Cloudflare 真实用量，供 Subscription-Userinfo 头；
+//   - 协议/传输/证书/0RTT/分片/随机路径/ECH/指纹等生成设置快照，
+//     供「自动获取配置」开关（gen.auto_from_panel）使用。
 type UUIDService struct {
 	adminURL    string
 	runTimeFile string
@@ -34,13 +37,36 @@ type UUIDService struct {
 	usageWorkers int64
 	usageMax     int64
 	usageOK      bool
+
+	genSettings config.GenSettings // 面板生成配置快照（已 Normalized）
+	genHosts    []string           // 面板 HOST/HOSTS 域名池
+	genOK       bool               // 面板是否提供了可识别的生成设置字段
 }
 
 // panelConfig admin/config.json 中本项目消费的字段子集。
-// 面板实际返回远多于这些的字段（HOST/HOSTS/LINK/TG/反代…），按需忽略。
+// 面板实际返回远多于这些的字段（LINK/TG/反代…），按需忽略；
+// 生成相关键名与面板保持同构，缺失时逐项回落到缺省值。
 type panelConfig struct {
-	UUID string `json:"UUID"`
-	CF   struct {
+	UUID  string   `json:"UUID"`
+	HOST  string   `json:"HOST"`
+	HOSTS []string `json:"HOSTS"`
+
+	ProtocolType  string `json:"协议类型"`
+	TransportType string `json:"传输协议"`
+	GRPCModeKey   string `json:"gRPC模式"`
+	GRPCUserAgent string `json:"gRPCUserAgent"`
+	SkipCert      bool   `json:"跳过证书验证"`
+	Enable0RTTP   bool   `json:"启用0RTT"`
+	TLSShard      string `json:"TLS分片"`
+	RandomPathP   bool   `json:"随机路径"`
+	ECHOn         bool   `json:"ECH"`
+	ECHConfig     struct {
+		DNS string  `json:"DNS"`
+		SNI *string `json:"SNI"`
+	} `json:"ECHConfig"`
+	Fingerprint string `json:"Fingerprint"`
+
+	CF struct {
 		Usage struct {
 			Success bool  `json:"success"`
 			Pages   int64 `json:"pages"`
@@ -69,6 +95,18 @@ func (u *UUIDService) UsageSnapshot() (CFUsage, bool) {
 	return CFUsage{Pages: u.usagePages, Workers: u.usageWorkers, Max: u.usageMax}, true
 }
 
+// GenPanelSnapshot 返回最近一次面板拉取得到的生成配置与域名池；
+// ok=false 表示不可用（尚未拉取过 / 面板未提供协议或传输字段）。
+func (u *UUIDService) GenPanelSnapshot() (config.GenSettings, []string, bool) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if !u.genOK {
+		return config.GenSettings{}, nil, false
+	}
+	hosts := append([]string(nil), u.genHosts...)
+	return u.genSettings, hosts, true
+}
+
 // NewUUIDService 构造。
 func NewUUIDService(adminURL, runTimeFile, domain string, timeoutSec int) *UUIDService {
 	if timeoutSec <= 0 {
@@ -94,10 +132,11 @@ func (u *UUIDService) Clear() error {
 	defer u.mu.Unlock()
 	u.cachedUUID = ""
 	u.cachedDate = "1970-01-01"
+	u.genOK = false
 	return os.WriteFile(u.runTimeFile, []byte("0"), 0o644)
 }
 
-// Get 返回 UUID（带缓存）。
+// Get 返回 UUID（带缓存），同一次拉取顺带刷新用量与生成配置快照。
 func (u *UUIDService) Get() (string, error) {
 	u.mu.Lock()
 	if u.cachedUUID != "" && u.isSameOrNextDay() {
@@ -150,10 +189,20 @@ func (u *UUIDService) Get() (string, error) {
 	u.usageWorkers = cfg.CF.Usage.Workers
 	u.usageMax = cfg.CF.Usage.Max
 	u.usageOK = cfg.CF.Usage.Success && cfg.CF.Usage.Max > 0
+	if gs, ok := panelGenSettings(cfg); ok {
+		u.genSettings = gs
+		u.genOK = true
+	}
+	if len(cfg.HOSTS) > 0 {
+		u.genHosts = append([]string(nil), cfg.HOSTS...)
+	} else if cfg.HOST != "" {
+		u.genHosts = []string{cfg.HOST}
+	}
 	u.mu.Unlock()
 	return cfg.UUID, nil
 }
 
+// isSameOrNextDay 判断缓存是否仍然有效（同一天或跨天 48h 内）。
 func (u *UUIDService) isSameOrNextDay() bool {
 	target, err := time.Parse("2006-01-02", u.cachedDate)
 	if err != nil {
@@ -178,6 +227,45 @@ func (u *UUIDService) readRunCount() int {
 
 func (u *UUIDService) writeRunCount(n int) {
 	_ = os.WriteFile(u.runTimeFile, []byte(strconv.Itoa(n)), 0o644)
+}
+
+// panelGenSettings 把面板字段映射为归一化后的生成配置。
+// 布尔开关以面板值为准；枚举类非法值由 Normalized 收敛；
+// 未见到任何协议/传输字段时视为面板不可用（ok=false）。
+func panelGenSettings(cfg panelConfig) (config.GenSettings, bool) {
+	g := config.DefaultGenSettings()
+	saw := false
+	if cfg.ProtocolType != "" {
+		g.Protocol = cfg.ProtocolType
+		saw = true
+	}
+	if cfg.TransportType != "" {
+		g.Transport = cfg.TransportType
+		saw = true
+	}
+	if cfg.GRPCModeKey != "" {
+		g.GRPCMode = cfg.GRPCModeKey
+	}
+	g.GRPCUserAgent = cfg.GRPCUserAgent
+	g.SkipCertVerify = cfg.SkipCert
+	g.Enable0RTT = cfg.Enable0RTTP || (!saw && g.Enable0RTT)
+	switch strings.ToLower(strings.TrimSpace(cfg.TLSShard)) {
+	case "shadowrocket":
+		g.Fragment = "shadowrocket"
+	case "happ":
+		g.Fragment = "happ"
+	}
+	g.RandomPath = cfg.RandomPathP
+	g.ECH = cfg.ECHOn
+	g.ECHDNS = cfg.ECHConfig.DNS
+	if cfg.ECHConfig.SNI != nil {
+		g.ECHSNI = *cfg.ECHConfig.SNI
+	}
+	if cfg.Fingerprint != "" {
+		g.Fingerprint = cfg.Fingerprint
+	}
+	out := g.Normalized()
+	return out, saw
 }
 
 func maxi(a, b int) int {

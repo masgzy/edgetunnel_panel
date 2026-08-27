@@ -60,6 +60,11 @@ type SubscriptionService struct {
 	// subconverter 桥接（可选）
 	subConverter SubConverterConfig
 
+	// 生成配置：自动面板 / 手动 / 缺省三级来源
+	genAutoFromPanel bool
+	genManual        config.GenSettings
+	genSet           bool // SetGenConfig 是否已调用（未调用时用缺省值）
+
 	// userinfo 过期时间字符串（由 server 注入）
 	userinfoExpireStr string
 }
@@ -98,6 +103,41 @@ func NewSubscriptionService(
 // SetSubConverter 注入 subconverter 桥接配置。
 func (s *SubscriptionService) SetSubConverter(cfg SubConverterConfig) {
 	s.subConverter = cfg
+}
+
+// SetGenConfig 注入生成配置（gen 节解析结果）：auto_from_panel 开关 + 手动默认值。
+func (s *SubscriptionService) SetGenConfig(autoFromPanel bool, manual config.GenSettings) {
+	s.genAutoFromPanel = autoFromPanel
+	s.genManual = manual.Normalized()
+	s.genSet = true
+}
+
+// resolveGenSettings 计算当前生效的生成配置：
+// 自动模式且面板快照可用 → 面板值；否则手动默认值；未注入时退回缺省。
+func (s *SubscriptionService) resolveGenSettings() config.GenSettings {
+	if s.genAutoFromPanel && s.uuidService != nil {
+		if gs, _, ok := s.uuidService.GenPanelSnapshot(); ok {
+			return gs
+		}
+	}
+	if s.genSet {
+		return s.genManual
+	}
+	return config.DefaultGenSettings()
+}
+
+// EffectiveGenSettings 返回当前实际生效的生成配置（面板自动 / 手动 / 缺省）。
+func (s *SubscriptionService) EffectiveGenSettings() config.GenSettings {
+	return s.resolveGenSettings()
+}
+
+// PanelGenAvailable 报告面板生成配置快照是否可用（已拉取且含协议/传输字段）。
+func (s *SubscriptionService) PanelGenAvailable() bool {
+	if s.uuidService == nil {
+		return false
+	}
+	_, _, ok := s.uuidService.GenPanelSnapshot()
+	return ok
 }
 
 // GetDomain 返回订阅域名。
@@ -184,7 +224,7 @@ func (s *SubscriptionService) BuildSubscription(subID, subType string) (string, 
 		if currentYxIP == "" {
 			currentYxIP = yxIP
 		}
-		lines = append(lines, s.buildVlessLine(profile, uuid, item.IP, currentYxIP, currentName))
+		lines = append(lines, s.buildNodeLine(profile, uuid, item.IP, currentYxIP, currentName))
 	}
 	body := strings.Join(lines, "\n")
 	if len(lines) > 0 {
@@ -214,7 +254,7 @@ func (s *SubscriptionService) BuildMihomoSubscription(subID, subType, configURL 
 	}
 	data = s.applyUniqueNames(data)
 
-	var entries []module.SubEntry
+	entries := make([]module.SubEntry, 0, len(data))
 	for _, item := range data {
 		name := item.Name
 		currentName := name
@@ -233,6 +273,8 @@ func (s *SubscriptionService) BuildMihomoSubscription(subID, subType, configURL 
 			Domain:  profile.Domain,
 			Port:    s.port,
 		})
+		gs := s.resolveGenSettings()
+		entries[len(entries)-1].Gen = &gs
 	}
 	return module.BuildSubWithConfig(entries, configURL), nil
 }
@@ -452,21 +494,16 @@ func (s *SubscriptionService) applyUniqueNames(data []SubItem) []SubItem {
 	return data
 }
 
-// buildVlessLine 拼装单条 vless:// 订阅行。
-func (s *SubscriptionService) buildVlessLine(profile config.SubscriptionProfile, uuid, proxyIP, yxIP, name string) string {
-	var path, packetEncoding string
-	if profile.Format == "edt" {
-		path = fmt.Sprintf("%%2Fproxyip%%3D%s%%3Fed%%3D2560", proxyIP)
-		packetEncoding = ""
-	} else {
-		path = fmt.Sprintf("%%2Fsnippets%%2Fip%%3D%s", proxyIP)
-		packetEncoding = "&packetEncoding=xudp"
-	}
-	authority := FormatAuthority(yxIP, s.port)
-	return fmt.Sprintf(
-		"vless://%s@%s/?type=ws&encryption=none&flow=&host=%s&path=%s&security=tls&sni=%s%s&fp=chrome#%s",
-		uuid, authority, profile.Domain, path, profile.Domain, packetEncoding, name,
-	)
+// buildNodeLine 拼装单条订阅行（vless/trojan/ss 由生成配置决定）。
+func (s *SubscriptionService) buildNodeLine(profile config.SubscriptionProfile, uuid, proxyIP, yxIP, name string) string {
+	g := s.resolveGenSettings()
+	return BuildNodeLink(g, profile.Format, LinkParams{
+		UUID:      uuid,
+		Authority: FormatAuthority(yxIP, s.port),
+		Domain:    profile.Domain,
+		ProxyIP:   proxyIP,
+		Name:      name,
+	})
 }
 
 // userinfoExpire 计算流量信息的过期时间戳（秒）。

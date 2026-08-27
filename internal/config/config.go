@@ -83,6 +83,11 @@ type RuntimeConfig struct {
 	SubConverterRemote string
 	SubConverterBin    string // 本地 subconverter 二进制路径
 	SubConverterPort   int
+
+	// 生成配置（gen 节）：订阅链接的协议/传输/证书/0RTT/分片等参数来源。
+	// GenAutoFromPanel=true 且面板可用时使用面板值，否则用 GenManual。
+	GenAutoFromPanel bool        // 自动获取配置（协议，设置）；缺省 true
+	GenManual        GenSettings // 手动模式默认值（已归一化）
 }
 
 // topSections config.yml 的五个必需顶层节。
@@ -172,6 +177,7 @@ func Load(rootDir string) (*RuntimeConfig, error) {
 	}
 
 	applySubConverterSettings(cfg, rootDir, data)
+	applyGenSection(cfg, data)
 	return cfg, nil
 }
 
