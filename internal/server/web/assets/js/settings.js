@@ -279,6 +279,11 @@ function renderGenPanelChips(panelGS, hosts, ok) {
     [labels.fingerprint, panelGS.fingerprint || '-'],
     [labels.fragment, panelGS.fragment ? panelGS.fragment : i18n.t('gen_frag_off')],
   ];
+  if (panelGS.proxy_path && panelGS.proxy_path.path_tpl) {
+    const pp = panelGS.proxy_path;
+    const proxyVal = (pp.proxy_ip && pp.proxy_ip !== 'auto') ? pp.proxy_ip + ' · ' : '';
+    values.push([i18n.t('gen_proxy_path'), proxyVal + pp.path_tpl]);
+  }
   box.innerHTML = values.map(([k, v]) =>
     `<span class="chip">${escapeHtml(k)}: ${escapeHtml(v)}</span>`
   ).join('') + buildSwitchChips(panelGS);

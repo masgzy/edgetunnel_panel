@@ -77,6 +77,16 @@ type panelConfig struct {
 		TLS    *bool  `json:"TLS"`
 	} `json:"SS"`
 
+	PATH string `json:"PATH"`
+
+	// 反代节：生态代码中以特征码字典拆写 PROXYIP 键，实际 JSON 键为 "PROXYIP"。
+	ProxySec struct {
+		ProxyIP string `json:"PROXYIP"`
+		TplSec  struct {
+			ProxyIP string `json:"PROXYIP"`
+		} `json:"路径模板"`
+	} `json:"反代"`
+
 	CF struct {
 		Usage struct {
 			Success bool  `json:"success"`
@@ -283,6 +293,19 @@ func panelGenSettings(cfg panelConfig) (config.GenSettings, bool) {
 	}
 	if cfg.SS.TLS != nil {
 		g.SSTLS = *cfg.SS.TLS
+	}
+	// 反代路径设置：面板提供 PATH 前缀或反代节时注入快照；
+	// 路径模板缺省时补齐生态默认（"proxyip={{IP:PORT}}"）。
+	if cfg.PATH != "" || cfg.ProxySec.ProxyIP != "" || cfg.ProxySec.TplSec.ProxyIP != "" {
+		tpl := strings.TrimSpace(cfg.ProxySec.TplSec.ProxyIP)
+		if tpl == "" {
+			tpl = "proxyip=" + config.ProxyIPPlaceholder
+		}
+		g.ProxyPath = &config.GenProxyPath{
+			ProxyIP:    strings.TrimSpace(cfg.ProxySec.ProxyIP),
+			PathPrefix: strings.TrimSpace(cfg.PATH),
+			PathTpl:    tpl,
+		}
 	}
 	out := g.Normalized()
 	return out, saw

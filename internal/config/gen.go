@@ -40,6 +40,81 @@ type GenSettings struct {
 	Fingerprint    string `json:"fingerprint"`
 	SSCipher       string `json:"ss_cipher"` // SS 加密方式（面板 SS.加密方式；缺省 aes-128-gcm）
 	SSTLS          bool   `json:"ss_tls"`    // SS 是否启用 TLS（面板 SS.TLS；false 时端口映射为 noTLS 组）
+
+	// ProxyPath 面板反代路径设置快照（来自面板 config.json 的 PATH 前缀与「反代」节），
+	// 仅在「自动获取配置」且面板可用时注入；不落 config.yml、不参与手动设置，
+	// nil 表示面板未提供，路径组装回落到 BaseProxyPath 的历史硬编码行为。
+	ProxyPath *GenProxyPath `json:"proxy_path,omitempty" yaml:"-"`
+}
+
+// ProxyIPPlaceholder 面板反代路径模板占位符（对齐生态）。
+const ProxyIPPlaceholder = "{{IP:PORT}}"
+
+// GenProxyPath 面板反代路径设置快照。
+type GenProxyPath struct {
+	ProxyIP    string `json:"proxy_ip"`    // 面板反代 PROXYIP 值："auto" / 具体 IP / 空
+	PathPrefix string `json:"path_prefix"` // 面板 PATH 路径前缀（如 "/"；根前缀等价于无前缀）
+	PathTpl    string `json:"path_tpl"`    // 反代路径模板（如 "proxyip={{IP:PORT}}"；空表示面板未提供）
+}
+
+// normalizePrefix 归一化 PATH 前缀：确保以 "/" 开头；根前缀归一为空串。
+func normalizePrefix(prefix string) string {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" || prefix == "/" {
+		return ""
+	}
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	return strings.TrimRight(prefix, "/")
+}
+
+// splitPathQuery 把 "路径?查询" 拆为路径与查询两部分（均不含分隔符）。
+func splitPathQuery(s string) (path, query string) {
+	if i := strings.Index(s, "?"); i != -1 {
+		return s[:i], s[i+1:]
+	}
+	return s, ""
+}
+
+// RenderBasePath 按生态规则渲染节点路径基座（未编码、不含 enc/ed 追加）：
+//   - 反代 IP 取值：节点条目 IP（非空且非 DIRECT）优先，无条件渲染（对齐生态反代池命中行为）；
+//     条目缺省时用面板 PROXYIP 兜底，面板值为 "auto" 时不渲染（对齐生态初始化逻辑）；
+//   - 反代参数 = 路径模板渲染占位符；模板含 "?" 时查询片段并入返回的 query；
+//   - PATH 前缀自带的查询片段同样并入 query。
+func (pp *GenProxyPath) RenderBasePath(nodeIP string) (basePath, baseQuery string) {
+	prefixPath, prefixQuery := splitPathQuery(normalizePrefix(pp.PathPrefix))
+
+	ip := strings.TrimSpace(nodeIP)
+	if ip == "" || ip == "DIRECT" {
+		ip = strings.TrimSpace(pp.ProxyIP)
+	}
+	proxyParam, proxyQuery := "", ""
+	if ip != "" && ip != "auto" && ip != "DIRECT" && pp.PathTpl != "" {
+		proxyParam, proxyQuery = splitPathQuery(strings.ReplaceAll(pp.PathTpl, ProxyIPPlaceholder, ip))
+	}
+
+	basePath = prefixPath
+	if basePath == "" {
+		basePath = "/"
+	}
+	if proxyParam != "" {
+		if basePath == "/" {
+			basePath = "/" + proxyParam
+		} else {
+			basePath += "/" + proxyParam
+		}
+	}
+
+	var queries []string
+	if prefixQuery != "" {
+		queries = append(queries, prefixQuery)
+	}
+	if proxyQuery != "" {
+		queries = append(queries, proxyQuery)
+	}
+	baseQuery = strings.Join(queries, "&")
+	return basePath, baseQuery
 }
 
 // ssTLSPorts/ssPlainPorts SS TLS 与 noTLS 端口一一映射（对齐生态运行时行为）。
@@ -182,16 +257,27 @@ func BaseProxyPath(format, proxyIP string) string {
 
 // TransportPath 计算当前配置下某节点的传输路径值（含 enc/ed 追加与随机前缀），
 // 未做 URL 编码。format 为订阅模板格式（edt|snippets）。
+// 面板反代路径快照（ProxyPath）可用时优先按面板 PATH 前缀与路径模板渲染，
+// 否则回落到 BaseProxyPath 的历史硬编码行为。
 func (g GenSettings) TransportPath(format, proxyIP string) string {
-	p := BaseProxyPath(format, proxyIP)
+	var basePath, baseQuery string
+	if pp := g.ProxyPath; pp != nil && strings.TrimSpace(pp.PathTpl) != "" {
+		basePath, baseQuery = pp.RenderBasePath(proxyIP)
+	} else {
+		basePath = BaseProxyPath(format, proxyIP)
+	}
 
 	var params []string
+	if baseQuery != "" {
+		params = append(params, baseQuery)
+	}
 	if g.Protocol == "ss" {
 		params = append(params, "enc="+g.SSCipher)
 	}
 	if g.Enable0RTT {
 		params = append(params, "ed=2560")
 	}
+	p := basePath
 	if len(params) > 0 {
 		p += "?" + strings.Join(params, "&")
 	}

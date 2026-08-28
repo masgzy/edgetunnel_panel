@@ -66,7 +66,7 @@ func main() {
 		kong.Name("edt"),
 		kong.Description("edt_panel - VLess 订阅管理服务"),
 		kong.UsageOnError(),
-		kong.Vars{"version": "1.0.0"},
+		kong.Vars{"version": "1.2.0"},
 	)
 	_ = ctx
 
