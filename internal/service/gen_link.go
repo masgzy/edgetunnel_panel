@@ -7,16 +7,17 @@
 //   - 0-RTT / SS enc / 随机伪装路径：见 config.GenSettings.TransportPath
 //   - ECH：ech=SNI+DNS（URL 编码）
 //   - gRPC：type=grpc&mode=gun|multi、serviceName 替代 path（无斜杠）、authority 替代 host
-//   - xhttp：type=xhttp&mode=stream-one
+//   - xhttp：type=xhttp&mode=stream-one&extra=<UUID 派生混淆参数（对齐生态）>
 //   - 证书校验：allowInsecure=1
 //   - trojan 用户名 = sha224(UUID)（对齐生态运行时入口校验）；ss 密码 = UUID，
-//     经 v2ray-plugin 承载 ws+tls，加密方式写路径 enc 参数
+//     经 v2ray-plugin 承载 ws(+tls)，加密方式写路径 enc 参数；SS 非 TLS 时端口映射
 package service
 
 import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -65,7 +66,7 @@ func allowInsecureParam(g config.GenSettings) string {
 }
 
 // transportView 返回 type 参数值与路径字段名（gRPC 用 serviceName 并以 authority 承载域名字段）。
-func transportView(g config.GenSettings) (typeVal, pathField, hostField string) {
+func transportView(g config.GenSettings, uuid string) (typeVal, pathField, hostField string) {
 	switch g.Transport {
 	case "grpc":
 		mode := g.GRPCMode
@@ -74,10 +75,35 @@ func transportView(g config.GenSettings) (typeVal, pathField, hostField string) 
 		}
 		return "grpc&mode=" + mode, "serviceName", "authority"
 	case "xhttp":
-		return "xhttp&mode=stream-one", "path", "host"
+		return "xhttp&mode=stream-one" + xhttpExtraParam(uuid), "path", "host"
 	default:
 		return "ws", "path", "host"
 	}
+}
+
+// xhttpExtraParam 叉HTTP（xhttp）混淆 extra 参数：
+// padding 头/键由 UUID 派生（对齐生态运行时校验逻辑），UUID 非标准长度时不追加。
+func xhttpExtraParam(uuid string) string {
+	if len(uuid) < 31 {
+		return ""
+	}
+	b, err := json.Marshal(struct {
+		ObfsMode  bool   `json:"xPaddingObfsMode"`
+		Method    string `json:"xPaddingMethod"`
+		Placement string `json:"xPaddingPlacement"`
+		Header    string `json:"xPaddingHeader"`
+		Key       string `json:"xPaddingKey"`
+	}{true, "tokenish", "queryInHeader", uuid[1:7], "_" + uuid[25:31]})
+	if err != nil {
+		return ""
+	}
+	return "&extra=" + url.QueryEscape(string(b))
+}
+
+// pluginPathEscape v2ray-plugin path 参数转义：= 与 , 前加反斜杠（对齐生态订阅输出）。
+func pluginPathEscape(path string) string {
+	path = strings.ReplaceAll(path, "=", `\=`)
+	return strings.ReplaceAll(path, ",", `\,`)
 }
 
 // BuildNodeLink 按生成配置渲染单个分享链接。
@@ -85,7 +111,7 @@ func transportView(g config.GenSettings) (typeVal, pathField, hostField string) 
 func BuildNodeLink(g config.GenSettings, format string, p LinkParams) string {
 	g = g.Normalized()
 
-	typeVal, pathField, hostField := transportView(g)
+	typeVal, pathField, hostField := transportView(g, p.UUID)
 	rawPath := g.TransportPath(format, p.ProxyIP)
 
 	frag := FragmentParam(g)
@@ -94,22 +120,28 @@ func BuildNodeLink(g config.GenSettings, format string, p LinkParams) string {
 
 	switch g.Protocol {
 	case "ss":
-		// SIP002 + v2ray-plugin（承载 ws+tls）：密码即用户凭据，host 取连接目标主机部分。
+		// SIP002 + v2ray-plugin（承载 ws(+tls)）：密码即用户凭据，host 取连接目标主机部分。
 		userInfo := base64.StdEncoding.EncodeToString(
-			[]byte(config.SSCipher + ":" + p.UUID))
-		hostPart := p.Authority
+			[]byte(g.SSCipher + ":" + p.UUID))
+		addr := p.Authority
+		hostPart := addr
 		if i := strings.LastIndex(hostPart, ":"); i != -1 && !strings.Contains(hostPart[i:], "]") {
 			hostPart = hostPart[:i]
 		}
-		return fmt.Sprintf(
-			"ss://%s@%s?plugin=v2%s#%s",
-			userInfo,
-			p.Authority,
-			url.QueryEscape(fmt.Sprintf(
-				"ray-plugin;mode=websocket;host=%s;path=%s;tls;mux=0",
-				hostPart, rawPath)),
-			url.QueryEscape(p.Name),
-		)
+		tlsPart := ";tls"
+		if !g.SSTLS {
+			// 非 TLS：TLS 端口组映射为对应 noTLS 端口（对齐生态订阅输出）。
+			tlsPart = ""
+			if i := strings.LastIndex(addr, ":"); i != -1 && !strings.Contains(addr[i:], "]") {
+				addr = addr[:i+1] + config.SSMapPort(addr[i+1:])
+			} else {
+				addr += ":80"
+			}
+		}
+		plugin := fmt.Sprintf("ray-plugin;mode=websocket;host=%s;path=%s%s;mux=0",
+			hostPart, pluginPathEscape(rawPath), tlsPart)
+		return fmt.Sprintf("ss://%s@%s?plugin=v2%s#%s",
+			userInfo, addr, url.QueryEscape(plugin), url.QueryEscape(p.Name))
 
 	case "trojan":
 		sum := sha256.Sum224([]byte(p.UUID))

@@ -10,6 +10,7 @@ package module
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"edt/internal/config"
@@ -80,6 +81,12 @@ func SubFull(e SubEntry) string {
 		serverHost = h
 		serverPort = p
 	}
+	if e.Gen != nil {
+		if gn := e.Gen.Normalized(); gn.Protocol == "ss" && !gn.SSTLS {
+			// SS 非 TLS：TLS 端口组映射为对应 noTLS 端口（对齐生态订阅输出）。
+			serverPort = mappedSSPort(serverPort)
+		}
+	}
 
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("  - name: %q\n", e.Name))
@@ -111,9 +118,20 @@ func SubFull(e SubEntry) string {
 	path := gn.TransportPath("edt", e.ProxyIP) // 与订阅链接同款路径组装
 	switch gn.Protocol {
 	case "ss":
+		// ss 以 v2ray-plugin 承载 ws(+tls)（与订阅链接同构；type:ss 不存在 network:ws 形式）。
 		b.WriteString("    type: ss\n")
-		b.WriteString(fmt.Sprintf("    cipher: %s\n", config.SSCipher))
+		b.WriteString(fmt.Sprintf("    cipher: %s\n", gn.SSCipher))
 		b.WriteString(fmt.Sprintf("    password: %s\n", e.UUID))
+		b.WriteString("    plugin: v2ray-plugin\n")
+		b.WriteString("    plugin-opts:\n")
+		b.WriteString("      mode: websocket\n")
+		b.WriteString(fmt.Sprintf("      host: %s\n", e.Domain))
+		b.WriteString(fmt.Sprintf("      path: %s\n", path))
+		b.WriteString(fmt.Sprintf("      tls: %t\n", gn.SSTLS))
+		if gn.SkipCertVerify {
+			b.WriteString("      skip-cert-verify: true\n")
+		}
+		return b.String()
 	case "trojan":
 		b.WriteString("    type: trojan\n")
 		b.WriteString(fmt.Sprintf("    password: %s\n", e.UUID))
@@ -550,3 +568,14 @@ const defaultRules = `# ACL4SSR 精简版规则（内嵌）
 - GEOIP,CN,🎯 全球直连
 - MATCH,🐟 漏网之鱼
 `
+
+// mappedSSPort SS 非 TLS 时的端口映射（TLS 组 → noTLS 组，对齐生态订阅输出）。
+func mappedSSPort(port int) int {
+	orig := strconv.Itoa(port)
+	if mapped := config.SSMapPort(orig); mapped != orig {
+		if n, err := strconv.Atoi(mapped); err == nil {
+			return n
+		}
+	}
+	return port
+}

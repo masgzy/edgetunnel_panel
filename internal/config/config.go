@@ -86,8 +86,9 @@ type RuntimeConfig struct {
 
 	// 生成配置（gen 节）：订阅链接的协议/传输/证书/0RTT/分片等参数来源。
 	// GenAutoFromPanel=true 且面板可用时使用面板值，否则用 GenManual。
-	GenAutoFromPanel bool        // 自动获取配置（协议，设置）；缺省 true
-	GenManual        GenSettings // 手动模式默认值（已归一化）
+	GenAutoFromPanel      bool        // 自动获取配置（协议，设置）；缺省 true
+	GenAggregateWorkerSub bool        // 聚合面板(Worker)原生订阅到订阅输出；缺省 false
+	GenManual             GenSettings // 手动模式默认值（已归一化）
 }
 
 // topSections config.yml 的五个必需顶层节。

@@ -315,6 +315,7 @@ async function loadGenSettings() {
     const st = await api('/api/gen');
     genAutoOn = st.auto !== false;
     document.getElementById('genAuto').checked = genAutoOn;
+    document.getElementById('genAgg').checked = !!st.aggregate;
     genFillManualUI(st.manual || st.effective || {});
     // 面板快照展示：接口未返回 panel 时，若 auto 开启尝试刷新一次
     if (st.panel) {
@@ -361,6 +362,7 @@ function bindGenSettings() {
   document.getElementById('genSaveBtn').addEventListener('click', async () => {
     try {
       const body = { auto: document.getElementById('genAuto').checked };
+      body.aggregate = document.getElementById('genAgg').checked;
       if (!body.auto) body.manual = genReadManualFromUI();
       await api('/api/gen', {
         method: 'POST',

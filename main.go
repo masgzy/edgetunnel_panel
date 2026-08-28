@@ -301,7 +301,7 @@ func newApp(cfg *config.RuntimeConfig) *app {
 		cfg.EncodeSubscriptionBase64, cfg.DataSources,
 	)
 	subService.SetUserinfoExpire(cfg.UserinfoExpire)
-	subService.SetGenConfig(cfg.GenAutoFromPanel, cfg.GenManual)
+	subService.SetGenConfig(cfg.GenAutoFromPanel, cfg.GenAggregateWorkerSub, cfg.GenManual)
 	return &app{
 		cfg:      cfg,
 		cfgStore: cfgStore,

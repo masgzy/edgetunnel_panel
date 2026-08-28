@@ -38,6 +38,26 @@ type GenSettings struct {
 	ECHDNS         string `json:"ech_dns"`
 	ECHSNI         string `json:"ech_sni"`
 	Fingerprint    string `json:"fingerprint"`
+	SSCipher       string `json:"ss_cipher"` // SS 加密方式（面板 SS.加密方式；缺省 aes-128-gcm）
+	SSTLS          bool   `json:"ss_tls"`    // SS 是否启用 TLS（面板 SS.TLS；false 时端口映射为 noTLS 组）
+}
+
+// ssTLSPorts/ssPlainPorts SS TLS 与 noTLS 端口一一映射（对齐生态运行时行为）。
+var ssTLSPorts = []int{443, 2053, 2083, 2087, 2096, 8443}
+var ssPlainPorts = []int{80, 2052, 2082, 2086, 2095, 8080}
+
+// SSMapPort SS 非 TLS 时把 TLS 端口组映射为对应 noTLS 端口；其余端口原样返回。
+func SSMapPort(port string) string {
+	n := 0
+	if _, err := fmt.Sscanf(port, "%d", &n); err != nil {
+		return port
+	}
+	for i, tp := range ssTLSPorts {
+		if n == tp {
+			return fmt.Sprintf("%d", ssPlainPorts[i])
+		}
+	}
+	return port
 }
 
 // DefaultGenSettings 返回缺省生成配置。
@@ -57,6 +77,8 @@ func DefaultGenSettings() GenSettings {
 		ECHDNS:         "",
 		ECHSNI:         "",
 		Fingerprint:    "chrome",
+		SSCipher:       SSCipher,
+		SSTLS:          true,
 	}
 }
 
@@ -92,6 +114,10 @@ func (g GenSettings) Normalized() GenSettings {
 	out.Fingerprint = finger
 
 	out.GRPCUserAgent = strings.TrimSpace(g.GRPCUserAgent)
+	out.SSCipher = strings.TrimSpace(g.SSCipher)
+	if out.SSCipher == "" {
+		out.SSCipher = d.SSCipher
+	}
 	out.ECHDNS = strings.TrimSpace(g.ECHDNS)
 	out.ECHSNI = strings.TrimSpace(g.ECHSNI)
 	if out.ECH && out.ECHDNS == "" {
@@ -161,7 +187,7 @@ func (g GenSettings) TransportPath(format, proxyIP string) string {
 
 	var params []string
 	if g.Protocol == "ss" {
-		params = append(params, "enc="+SSCipher)
+		params = append(params, "enc="+g.SSCipher)
 	}
 	if g.Enable0RTT {
 		params = append(params, "ed=2560")
@@ -189,6 +215,7 @@ func (g GenSettings) TransportPath(format, proxyIP string) string {
 // 不视为致命错误（与 subconverter 节的宽松策略一致）。
 func applyGenSection(cfg *RuntimeConfig, data map[string]interface{}) {
 	cfg.GenAutoFromPanel = true // 默认勾选：自动获取配置（协议，设置）
+	cfg.GenAggregateWorkerSub = false
 	cfg.GenManual = DefaultGenSettings()
 
 	raw, ok := data["gen"]
@@ -202,6 +229,12 @@ func applyGenSection(cfg *RuntimeConfig, data map[string]interface{}) {
 	if v, ok := m["auto_from_panel"]; ok {
 		if b, err := asBool(v, "gen.auto_from_panel"); err == nil {
 			cfg.GenAutoFromPanel = b
+		}
+
+		if v, ok := m["aggregate_worker_sub"]; ok {
+			if b, err := asBool(v, "gen.aggregate_worker_sub"); err == nil {
+				cfg.GenAggregateWorkerSub = b
+			}
 		}
 	}
 	mm, ok := m["manual"].(map[string]interface{})
@@ -252,6 +285,15 @@ func applyGenSection(cfg *RuntimeConfig, data map[string]interface{}) {
 	}
 	if v, ok := mm["fingerprint"]; ok {
 		g.Fingerprint = fmt.Sprintf("%v", v)
+	}
+
+	if v, ok := mm["ss_cipher"]; ok {
+		g.SSCipher = fmt.Sprintf("%v", v)
+	}
+	if v, ok := mm["ss_tls"]; ok {
+		if b, err := asBool(v, "gen.manual.ss_tls"); err == nil {
+			g.SSTLS = b
+		}
 	}
 	cfg.GenManual = g.Normalized()
 }

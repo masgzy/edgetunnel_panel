@@ -205,7 +205,13 @@ subconverter:
 
 - **勾选（自动）**：优先读取远程面板 `admin/config.json` 中的同名字段
   （协议类型 / 传输协议 / 跳过证书验证 / 启用0RTT / TLS分片 / 随机路径 /
-  ECH / Fingerprint），与面板侧设置保持一致；面板不可用时自动回落到手动默认值。
+  ECH / Fingerprint / SS 加密方式与 TLS），与面板侧设置保持一致；
+  面板不可用时自动回落到手动默认值。
+- **聚合面板原生订阅**（自动区开关，`aggregate_worker_sub`）：开启后订阅输出
+  会合并面板(Worker) `/sub?token=` 原生节点列表（令牌按生态同款
+  `md5(md5(HOST+UUID)[7:27])` 算法计算），面板侧优选 IP 池、反代注入与
+  链式代理节点一并纳入；仅在自动模式下面板可用时生效，仅作用于 Base64
+  订阅输出。
 - **取消勾选（手动）**：展开手动设置表单（协议三选、传输三选、指纹十选、
   分片 Shadowrocket/Happ、gRPC 模式与 UA、ECH DNS/SNI 等），取值写入
   `config.yml` 的 `gen` 节，仅作为面板不可用时的回落默认。
@@ -225,14 +231,24 @@ gen:
     random_path: false      # 随机伪装路径前缀
     ech: false              # ECH（需面板 Worker 同步开启）
     fingerprint: chrome     # chrome/firefox/safari/ios/android/edge/360/qq/random/randomized
+    ss_cipher: aes-128-gcm  # SS 加密方式（自动模式读取面板 SS.加密方式）
+    ss_tls: true            # SS TLS（false 时端口映射为 noTLS 组）
+    # 聚合开关与 auto_from_panel 同级：
+  # aggregate_worker_sub: false
 ```
 
 行为说明：
 
 - 保存后需重启服务生效（与端口、模板等配置一致）。
 - 协议切换对 Base64 订阅与 mihomo 订阅同时生效；trojan 用户名为
-  SHA-224(UUID)、SS 密码为 UUID（经 v2ray-plugin 承载 ws+tls），
-  与上游 edgetunnel 的订阅模板同构。
+  SHA-224(UUID)、SS 密码为 UUID（经 v2ray-plugin 承载 ws(+tls)，
+  非 TLS 时 TLS 端口组自动映射为 noTLS 端口组），与上游 edgetunnel
+  的订阅模板同构。
+- xhttp 传输时自动携带 `extra` 混淆参数（padding 头/键由 UUID 派生，
+  与 Worker 端校验逻辑一致）；SS 输出的 plugin path 对 `=`/`,` 做
+  反斜杠转义，均与生态行为对齐。
+- mihomo 订阅中 SS 以 `plugin: v2ray-plugin`（ws+tls）呈现，
+  与分享链接同构。
 - TLS 分片与 ECH 参数目前仅出现在分享链接中（mihomo 无对应标准字段）；
   xhttp/gRPC 在 mihomo 侧需要较新内核支持。
 

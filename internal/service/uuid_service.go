@@ -1,15 +1,20 @@
 package service
 
 import (
+	"crypto/md5"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"edt/internal/config"
 	"edt/internal/module"
@@ -39,6 +44,7 @@ type UUIDService struct {
 	usageOK      bool
 
 	genSettings config.GenSettings // 面板生成配置快照（已 Normalized）
+	genHost     string             // 面板 HOST（Worker 部署域名，订阅令牌计算依据）
 	genHosts    []string           // 面板 HOST/HOSTS 域名池
 	genOK       bool               // 面板是否提供了可识别的生成设置字段
 }
@@ -65,6 +71,11 @@ type panelConfig struct {
 		SNI *string `json:"SNI"`
 	} `json:"ECHConfig"`
 	Fingerprint string `json:"Fingerprint"`
+
+	SS struct {
+		Cipher string `json:"加密方式"`
+		TLS    *bool  `json:"TLS"`
+	} `json:"SS"`
 
 	CF struct {
 		Usage struct {
@@ -193,6 +204,9 @@ func (u *UUIDService) Get() (string, error) {
 		u.genSettings = gs
 		u.genOK = true
 	}
+	if cfg.HOST != "" {
+		u.genHost = cfg.HOST
+	}
 	if len(cfg.HOSTS) > 0 {
 		u.genHosts = append([]string(nil), cfg.HOSTS...)
 	} else if cfg.HOST != "" {
@@ -264,6 +278,12 @@ func panelGenSettings(cfg panelConfig) (config.GenSettings, bool) {
 	if cfg.Fingerprint != "" {
 		g.Fingerprint = cfg.Fingerprint
 	}
+	if cfg.SS.Cipher != "" {
+		g.SSCipher = cfg.SS.Cipher
+	}
+	if cfg.SS.TLS != nil {
+		g.SSTLS = *cfg.SS.TLS
+	}
 	out := g.Normalized()
 	return out, saw
 }
@@ -273,4 +293,69 @@ func maxi(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// md5Hex 十六进制小写 MD5。
+func md5Hex(text string) string {
+	sum := md5.Sum([]byte(text))
+	return hex.EncodeToString(sum[:])
+}
+
+// workerSubToken 计算面板订阅令牌：
+// token = md5( md5(HOST+UUID) 十六进制的第 7~27 位 )，对齐生态 /sub 鉴权。
+func workerSubToken(host, uuid string) string {
+	return md5Hex(md5Hex(host + uuid)[7:27])
+}
+
+// FetchWorkerSub 拉取面板（Worker）原生订阅，返回已解码的节点链接行。
+// 仅 gen.aggregate_worker_sub 开启时由订阅构建方调用；面板不可用时报错。
+func (u *UUIDService) FetchWorkerSub() ([]string, error) {
+	u.mu.Lock()
+	host := u.genHost
+	if host == "" && len(u.genHosts) > 0 {
+		host = u.genHosts[0]
+	}
+	uuid := u.cachedUUID
+	adminURL := u.adminURL
+	u.mu.Unlock()
+	if host == "" || uuid == "" {
+		return nil, fmt.Errorf("面板 host/uuid 不可用")
+	}
+	// 订阅端点与面板同 Worker 部署：从 adminURL 派生 /sub 地址（兼容 http 测试部署）。
+	base := strings.TrimSuffix(adminURL, "/admin/config.json")
+	req, err := http.NewRequest("GET",
+		fmt.Sprintf("%s/sub?token=%s&target=mixed", base, url.QueryEscape(workerSubToken(host, uuid))), nil)
+	if err != nil {
+		return nil, err
+	}
+	// UA 不得含 subconverter/mozilla 关键词，生态按此返回 base64 节点列表。
+	req.Header.Set("User-Agent", "edt_panel")
+	client := &http.Client{Timeout: u.timeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("面板订阅拉取失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("面板订阅返回 %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return nil, err
+	}
+	text := string(body)
+	if raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(text)); err == nil && utf8.Valid(raw) {
+		text = string(raw)
+	}
+	seen := map[string]bool{}
+	rows := make([]string, 0, 32)
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || seen[line] {
+			continue
+		}
+		seen[line] = true
+		rows = append(rows, line)
+	}
+	return rows, nil
 }

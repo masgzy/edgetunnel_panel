@@ -111,6 +111,7 @@ subconverter:
 # manual: 取消自动后的手动默认值（全部字段可省略，省略即用下行缺省）
 gen:
   auto_from_panel: true
+  aggregate_worker_sub: false  # 聚合面板(Worker) /sub 原生订阅（含优选 IP 池与反代注入）
   manual:
     protocol: vless          # vless | trojan | ss
     transport: ws            # ws | xhttp | grpc
@@ -124,3 +125,5 @@ gen:
     ech_dns: ""
     ech_sni: ""
     fingerprint: chrome      # chrome|firefox|safari|ios|android|edge|360|qq|random|randomized
+    ss_cipher: aes-128-gcm   # SS 加密方式（自动模式读取面板 SS.加密方式）
+    ss_tls: true             # SS TLS（false 时端口映射为 noTLS 组：443→80 等）

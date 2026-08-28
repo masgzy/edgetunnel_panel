@@ -793,10 +793,11 @@ func (d *Deps) genHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	auto, manual, _ := readGenSectionFromMap(cfgMap)
+	auto, aggregate, manual, _ := readGenSectionFromMap(cfgMap)
 
 	resp := map[string]interface{}{
 		"auto":         auto,
+		"aggregate":    aggregate,
 		"manual":       manual,
 		"effective":    d.SubscriptionSvc.EffectiveGenSettings(),
 		"panel_ok":     d.SubscriptionSvc.PanelGenAvailable(),
@@ -812,9 +813,10 @@ func (d *Deps) genHandler(w http.ResponseWriter, r *http.Request) {
 // genSave 处理 POST：把生成配置写入 config.yml 的 gen 节。
 func (d *Deps) genSave(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Auto    *bool               `json:"auto"`
-		Refresh bool                `json:"refresh"`
-		Manual  *config.GenSettings `json:"manual"`
+		Auto      *bool               `json:"auto"`
+		Aggregate *bool               `json:"aggregate"`
+		Refresh   bool                `json:"refresh"`
+		Manual    *config.GenSettings `json:"manual"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
@@ -830,7 +832,7 @@ func (d *Deps) genSave(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if req.Auto == nil && req.Manual == nil {
+	if req.Auto == nil && req.Manual == nil && req.Aggregate == nil {
 		panelGS, hosts, ok := d.UUIDService.GenPanelSnapshot()
 		resp := map[string]interface{}{"message": "nothing to save", "refreshed": refreshed}
 		if ok {
@@ -849,7 +851,7 @@ func (d *Deps) genSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 在现有磁盘值基础上做增量修改（缺省补齐默认行）。
-	currentAuto, currentManual, haveGen := readGenSectionFromMap(cfgMap)
+	currentAuto, currentAgg, currentManual, haveGen := readGenSectionFromMap(cfgMap)
 	if !haveGen {
 		def := config.DefaultGenSettings()
 		currentAuto = true
@@ -858,12 +860,16 @@ func (d *Deps) genSave(w http.ResponseWriter, r *http.Request) {
 	if req.Auto != nil {
 		currentAuto = *req.Auto
 	}
+	if req.Aggregate != nil {
+		currentAgg = *req.Aggregate
+	}
 	if req.Manual != nil {
 		currentManual = req.Manual.Normalized()
 	}
 
 	section := map[string]interface{}{
-		"auto_from_panel": currentAuto,
+		"auto_from_panel":      currentAuto,
+		"aggregate_worker_sub": currentAgg,
 		"manual": map[string]interface{}{
 			"protocol":         currentManual.Protocol,
 			"transport":        currentManual.Transport,
@@ -877,6 +883,8 @@ func (d *Deps) genSave(w http.ResponseWriter, r *http.Request) {
 			"ech_dns":          currentManual.ECHDNS,
 			"ech_sni":          currentManual.ECHSNI,
 			"fingerprint":      currentManual.Fingerprint,
+			"ss_cipher":        currentManual.SSCipher,
+			"ss_tls":           currentManual.SSTLS,
 		},
 	}
 	cfgMap["gen"] = section
@@ -888,31 +896,37 @@ func (d *Deps) genSave(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message":   "gen settings saved, restart to take effect",
 		"auto":      currentAuto,
+		"aggregate": currentAgg,
 		"manual":    currentManual,
 		"refreshed": refreshed,
 	})
 }
 
 // readGenSectionFromMap 从 config.yml 通用映射中提取 gen 节（宽松：缺失/非法回落默认）。
-func readGenSectionFromMap(cfgMap map[string]interface{}) (auto bool, manual config.GenSettings, ok bool) {
+func readGenSectionFromMap(cfgMap map[string]interface{}) (auto, aggregate bool, manual config.GenSettings, ok bool) {
 	manual = config.DefaultGenSettings()
 	auto = true
 	raw, present := cfgMap["gen"]
 	if !present || raw == nil {
-		return auto, manual, false
+		return auto, aggregate, manual, false
 	}
 	m, isMap := raw.(map[string]interface{})
 	if !isMap {
-		return auto, manual, false
+		return auto, aggregate, manual, false
 	}
 	if v, has := m["auto_from_panel"]; has {
 		if b, err := yamlToBool(v); err == nil {
 			auto = b
 		}
 	}
+	if v, has := m["aggregate_worker_sub"]; has {
+		if b, err := yamlToBool(v); err == nil {
+			aggregate = b
+		}
+	}
 	mm, has := m["manual"].(map[string]interface{})
 	if !has {
-		return auto, manual, true
+		return auto, aggregate, manual, true
 	}
 	gs := config.DefaultGenSettings()
 	str := func(key string, dst *string) {
@@ -939,8 +953,10 @@ func readGenSectionFromMap(cfgMap map[string]interface{}) (auto bool, manual con
 	bl("enable_0rtt", &gs.Enable0RTT)
 	bl("random_path", &gs.RandomPath)
 	bl("ech", &gs.ECH)
+	str("ss_cipher", &gs.SSCipher)
+	bl("ss_tls", &gs.SSTLS)
 	manual = gs.Normalized()
-	return auto, manual, true
+	return auto, aggregate, manual, true
 }
 
 // yamlToBool 宽松布尔转换（兼容 true/"1"/bool 等）。

@@ -62,6 +62,7 @@ type SubscriptionService struct {
 
 	// 生成配置：自动面板 / 手动 / 缺省三级来源
 	genAutoFromPanel bool
+	genAggregate     bool // 聚合面板(Worker)原生订阅（gen.aggregate_worker_sub）
 	genManual        config.GenSettings
 	genSet           bool // SetGenConfig 是否已调用（未调用时用缺省值）
 
@@ -105,9 +106,10 @@ func (s *SubscriptionService) SetSubConverter(cfg SubConverterConfig) {
 	s.subConverter = cfg
 }
 
-// SetGenConfig 注入生成配置（gen 节解析结果）：auto_from_panel 开关 + 手动默认值。
-func (s *SubscriptionService) SetGenConfig(autoFromPanel bool, manual config.GenSettings) {
+// SetGenConfig 注入生成配置（gen 节解析结果）：auto_from_panel / aggregate_worker_sub 开关 + 手动默认值。
+func (s *SubscriptionService) SetGenConfig(autoFromPanel, aggregateWorkerSub bool, manual config.GenSettings) {
 	s.genAutoFromPanel = autoFromPanel
+	s.genAggregate = aggregateWorkerSub
 	s.genManual = manual.Normalized()
 	s.genSet = true
 }
@@ -225,6 +227,21 @@ func (s *SubscriptionService) BuildSubscription(subID, subType string) (string, 
 			currentYxIP = yxIP
 		}
 		lines = append(lines, s.buildNodeLine(profile, uuid, item.IP, currentYxIP, currentName))
+	}
+	if s.genAggregate && s.uuidService != nil {
+		// 聚合面板(Worker)原生订阅：token 鉴权拉取 mixed 节点列表，追加在本地节点之后。
+		if rows, err := s.uuidService.FetchWorkerSub(); err == nil {
+			seen := make(map[string]bool, len(lines)+len(rows))
+			for _, l := range lines {
+				seen[l] = true
+			}
+			for _, r := range rows {
+				if !seen[r] {
+					seen[r] = true
+					lines = append(lines, r)
+				}
+			}
+		}
 	}
 	body := strings.Join(lines, "\n")
 	if len(lines) > 0 {
