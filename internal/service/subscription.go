@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,8 +47,6 @@ type SubscriptionService struct {
 	preIPStore     *PreIPStore
 	uuidService    *UUIDService
 	nrtFile        string
-	mihomoTemplate string
-	mihomoFile     string
 	port           int
 	profiles       map[string]config.SubscriptionProfile
 	defaultProfile string
@@ -76,7 +73,7 @@ func NewSubscriptionService(
 	rs *ResultStore,
 	ps *PreIPStore,
 	us *UUIDService,
-	nrtFile, mihomoTemplate, mihomoFile string,
+	nrtFile string,
 	port int,
 	profiles map[string]config.SubscriptionProfile,
 	defaultProfile string,
@@ -90,8 +87,6 @@ func NewSubscriptionService(
 		preIPStore:     ps,
 		uuidService:    us,
 		nrtFile:        nrtFile,
-		mihomoTemplate: mihomoTemplate,
-		mihomoFile:     mihomoFile,
 		port:           port,
 		profiles:       profiles,
 		defaultProfile: defaultProfile,
@@ -118,7 +113,7 @@ func (s *SubscriptionService) SetGenConfig(autoFromPanel, aggregateWorkerSub boo
 // 与 Set* 注入方法同一约定：低频调用；map 字段为整表替换，
 // 读端持有的旧引用继续可读（整表替换不并发写同一 map）。
 func (s *SubscriptionService) Reload(
-	nrtFile, mihomoTemplate, mihomoFile string,
+	nrtFile string,
 	port int,
 	profiles map[string]config.SubscriptionProfile,
 	defaultProfile string,
@@ -127,8 +122,6 @@ func (s *SubscriptionService) Reload(
 	dataSources map[string]config.DataSourceConfig,
 ) {
 	s.nrtFile = nrtFile
-	s.mihomoTemplate = mihomoTemplate
-	s.mihomoFile = mihomoFile
 	s.port = port
 	s.profiles = profiles
 	s.defaultProfile = defaultProfile
@@ -189,37 +182,6 @@ func (s *SubscriptionService) GetUserinfo() string {
 		}
 	}
 	return module.GetUserinfo(s.userinfoExpire())
-}
-
-// LoadClashFile 读取已生成的 mihomo 订阅（兼容原 /sub?clash）。
-// 候选顺序：files.mihomo_file 显式配置 → 模板同目录的 mihomo.yaml →
-// 模板文件本身（与旧版行为一致；旧版用字符串切片拼接路径，
-// 在模板名不同或过短时会算出错误路径甚至越界 panic）。
-func (s *SubscriptionService) LoadClashFile() (string, error) {
-	candidates := make([]string, 0, 3)
-	if s.mihomoFile != "" {
-		candidates = append(candidates, s.mihomoFile)
-	}
-	if s.mihomoTemplate != "" {
-		candidates = append(candidates, filepath.Join(filepath.Dir(s.mihomoTemplate), "mihomo.yaml"))
-	}
-	candidates = append(candidates, s.mihomoTemplate)
-
-	var firstErr error
-	for _, p := range candidates {
-		if p == "" {
-			continue
-		}
-		data, err := os.ReadFile(p)
-		if err == nil {
-			return string(data), nil
-		}
-		if firstErr == nil {
-			firstErr = err
-		}
-	}
-	return "", fmt.Errorf("无法读取 mihomo 配置（候选: %s）: %w",
-		strings.Join(candidates, ", "), firstErr)
 }
 
 // BuildSubscription 构建 vless:// 订阅。

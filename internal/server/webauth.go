@@ -236,6 +236,7 @@ func (a *webAuth) middleware(next http.Handler) http.Handler {
 			r.URL.Path == "/favicon.svg", r.URL.Path == "/favicon.ico":
 			return true
 		case r.URL.Path == "/sub" || strings.HasPrefix(r.URL.Path, "/sub/"),
+			r.URL.Path == "/mihomo",
 			r.URL.Path == "/convert":
 			// 订阅端点与转换端点必须匿名可达：subconverter 与代理客户端
 			// 无法携带控制台会话 Cookie。其安全性依赖订阅 URL 中 UUID 的

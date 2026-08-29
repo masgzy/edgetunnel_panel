@@ -25,8 +25,6 @@ files:
   vless_file: data/vless.txt
   result_file: data/result.csv
   run_time_file: data/run_time.txt
-  mihomo_template: data/mihomo/template.yaml
-  mihomo_file: data/mihomo.yaml
   auth_cache_file: data/auth.txt
 subscriptions:
   default_profile: main

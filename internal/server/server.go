@@ -397,9 +397,16 @@ func (d *Deps) getUUIDHandler(w http.ResponseWriter, r *http.Request) {
 // subHandler /sub - vless 订阅（兼容原接口）
 func (d *Deps) subHandler(w http.ResponseWriter, r *http.Request) {
 	d.Stats.IncSub()
-	// clash/mihomo 直接走 mihomo 生成
+	// clash/mihomo 参数：与 /mihomo 同源，直接内置生成完整配置
+	// （原版行为是读取静态文件；已改为生成，不再依赖外部模板/文件）
 	if r.URL.Query().Has("clash") || r.URL.Query().Has("mihomo") {
-		body, err := d.SubscriptionSvc.LoadClashFile()
+		subID := r.URL.Query().Get("id")
+		if subID == "" {
+			subID = "1"
+		}
+		subType := r.URL.Query().Get("type")
+		configURL := r.URL.Query().Get("config")
+		body, err := d.SubscriptionSvc.BuildMihomoSubscription(subID, subType, configURL)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -66,7 +66,7 @@ func main() {
 		kong.Name("edt"),
 		kong.Description("edt_panel - VLess 订阅管理服务"),
 		kong.UsageOnError(),
-		kong.Vars{"version": "1.2.0"},
+		kong.Vars{"version": "1.3.0"},
 	)
 	_ = ctx
 
@@ -149,7 +149,7 @@ func reloadRuntime(cli CLI, a *app, sup *scSupervisor, newCfg *config.RuntimeCon
 		AuthCacheFile:  newCfg.AuthCacheFile,
 	})
 	a.subSvc.Reload(
-		newCfg.NRTFile, newCfg.MihomoTemplate, newCfg.MihomoFile, newCfg.SubscriptionPort,
+		newCfg.NRTFile, newCfg.SubscriptionPort,
 		newCfg.Profiles, newCfg.DefaultProfile, newCfg.DefaultProfileByID,
 		newCfg.EncodeSubscriptionBase64, newCfg.DataSources,
 	)
@@ -401,7 +401,7 @@ func newApp(cfg *config.RuntimeConfig) *app {
 	})
 	subService := service.NewSubscriptionService(
 		cfgStore, resultStore, preIPStore, uuidService,
-		cfg.NRTFile, cfg.MihomoTemplate, cfg.MihomoFile, cfg.SubscriptionPort,
+		cfg.NRTFile, cfg.SubscriptionPort,
 		cfg.Profiles, cfg.DefaultProfile, cfg.DefaultProfileByID,
 		cfg.EncodeSubscriptionBase64, cfg.DataSources,
 	)

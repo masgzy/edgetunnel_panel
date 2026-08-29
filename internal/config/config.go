@@ -62,14 +62,12 @@ type RuntimeConfig struct {
 	LoginPassword  string
 	UserinfoExpire string
 
-	VlessFile      string
-	ResultFile     string
-	RunTimeFile    string
-	MihomoTemplate string
-	MihomoFile     string
-	AuthCacheFile  string
-	NRTFile        string
-	PreIPFile      string
+	VlessFile     string
+	ResultFile    string
+	RunTimeFile   string
+	AuthCacheFile string
+	NRTFile       string
+	PreIPFile     string
 
 	Profiles                 map[string]SubscriptionProfile
 	DefaultProfile           string
@@ -175,8 +173,6 @@ func LoadFrom(rootDir, filename string) (*RuntimeConfig, error) {
 		VlessFile:                resolvePath(rootDir, fileValue(sections.files, "vless_file", "data/vless.txt")),
 		ResultFile:               resolvePath(rootDir, fileValue(sections.files, "result_file", "data/result.txt")),
 		RunTimeFile:              resolvePath(rootDir, fileValue(sections.files, "run_time_file", "data/run_time.json")),
-		MihomoTemplate:           resolvePath(rootDir, fileValue(sections.files, "mihomo_template", "data/mihomo/template.yaml")),
-		MihomoFile:               resolvePath(rootDir, fileValue(sections.files, "mihomo_file", "data/mihomo.yaml")),
 		AuthCacheFile:            resolvePath(rootDir, fileValue(sections.files, "auth_cache_file", "data/auth.txt")),
 		NRTFile:                  filepath.Join(rootDir, "NRT.txt"),
 		PreIPFile:                filepath.Join(rootDir, "data", "pre_ip.txt"),

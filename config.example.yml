@@ -38,9 +38,10 @@ files:
   vless_file: data/vless.txt                  # 主节点配置：面板「节点配置」页读写的数据文件
   result_file: data/result.csv                # 优选结果：「优选 IP」页测速产出
   run_time_file: data/run_time.txt            # UUID 日期轮换记录（自动维护）
-  mihomo_template: data/mihomo/template.yaml  # mihomo 模板（占位符替换模式用，包内自带示例）
-  mihomo_file: data/mihomo.yaml               # mihomo 订阅文件：存在时 /mihomo 直接返回该文件
   auth_cache_file: data/auth.txt              # 控制端登录 Cookie 缓存（自动维护）
+
+# 说明：mihomo(clash.meta) 订阅由面板内置生成（/mihomo 与 /sub?clash 均可直接使用），
+# 无需任何外部模板文件。如需切换规则模板，可给订阅地址追加 ?config=<ACL4SSR ini URL>。
 
 # ---- 变量 ----
 # 可在 vless.txt 等数据文件中引用，支持三种写法：NRT、{{NRT}}、${NRT}。
