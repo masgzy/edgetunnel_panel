@@ -297,7 +297,7 @@ func loginPageHTML(next string, errMsg string) string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>edt_panel · 登录</title>
+<title>edt 面板 · 登录</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
 :root{
@@ -330,7 +330,7 @@ body{
 .logo .mark{
   width:72px;height:72px;border-radius:22px;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,var(--primary),var(--surface-hi));
-  color:var(--on-primary);font-size:30px;font-weight:700;letter-spacing:.5px;
+  color:var(--on-primary);font-size:34px;font-weight:700;
 }
 .logo h1{font-size:22px;font-weight:500}
 .logo p{font-size:13px;color:var(--on-var)}
@@ -362,8 +362,8 @@ button:active{transform:scale(.98)}
 <body>
 <main class="card">
   <div class="logo">
-    <div class="mark">edt_panel</div>
-    <h1>edt_panel 控制台</h1>
+    <div class="mark">e</div>
+    <h1>edt 面板</h1>
     <p>VLess 订阅管理服务</p>
   </div>
   ` + errBox + `

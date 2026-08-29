@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -24,7 +25,8 @@ import (
 
 // WS 与日志文件参数。
 const (
-	logFilePath     = "/tmp/edt.log"
+	// 日志随数据目录走（相对工作目录），不再依赖 /tmp——Windows 无此目录且易被系统清理。
+	logFilePath     = "data/panel.log"
 	logMaxSize      = 8 << 20 // 超过 8MB 截断
 	wsWriteWait     = 10 * time.Second
 	wsPongWait      = 60 * time.Second
@@ -189,6 +191,12 @@ func readLogTail(n int) string {
 func LogLine(format string, args ...interface{}) {
 	line := time.Now().Format("15:04:05") + " " + fmt.Sprintf(format, args...) + "\n"
 	f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		// data 目录可能不存在（首次在干净目录启动），创建后重试一次
+		if mkErr := os.MkdirAll(filepath.Dir(logFilePath), 0o755); mkErr == nil {
+			f, err = os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		}
+	}
 	if err == nil {
 		_, _ = f.WriteString(line)
 		_ = f.Close()

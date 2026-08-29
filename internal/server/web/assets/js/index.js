@@ -38,8 +38,12 @@ async function init() {
   updateGenUrl();
   renderHistory();
   restoreFromShare();
-  // 每 5 秒刷新统计（只刷 stats，避免重渲染整个状态卡）
-  setInterval(refreshStats, 5000);
+  // 每 3 秒刷新统计（只刷 stats，避免重渲染整个状态卡）；
+  // 页面切回前台立即刷一次，后台时浏览器节流无妨
+  setInterval(refreshStats, 3000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshStats();
+  });
 }
 
 async function refreshStats() {
@@ -74,9 +78,10 @@ async function loadStatus() {
     document.getElementById('kvPort').textContent = rt.subscription_port ?? '-';
     document.getElementById('kvProfile').textContent = rt.default_profile ?? '-';
     document.getElementById('kvB64').textContent = rt.encode_base64 ? i18n.t('on') : i18n.t('off');
-    document.getElementById('kvSc').textContent = sc.mode || 'off';
+    const modeKey = 'mode_' + (sc.mode || 'off');
+    document.getElementById('kvSc').textContent = i18n.t(modeKey);
     document.getElementById('statusSubtitle').textContent = scEnabled
-      ? `subconverter ${sc.mode} ${i18n.t('enabled')}`
+      ? `subconverter ${i18n.t(modeKey)} · ${i18n.t('enabled')}`
       : i18n.t('native_only');
     // 编辑视图填充
     document.getElementById('editPort').value = rt.subscription_port || 8443;
@@ -153,7 +158,7 @@ function renderProfiles(profiles, defaultKey) {
 
 function renderDataSources(sources) {
   const el = document.getElementById('dsList');
-  document.getElementById('dsCountLabel').textContent = `${sources.length} 个`;
+  document.getElementById('dsCountLabel').textContent = i18n.t('count_nodes').replace('{n}', sources.length);
   if (sources.length === 0) {
     el.innerHTML = '<span class="body-small text-on-surface-variant">' + i18n.t('empty_no_ds') + '</span>';
     return;
@@ -163,7 +168,7 @@ function renderDataSources(sources) {
       <div class="ds-id">${escapeHtml(ds.id)}</div>
       <div class="ds-info">
         <div class="ds-name">${escapeHtml(ds.name)}</div>
-        <div class="ds-kind">${escapeHtml(ds.kind)}</div>
+        <div class="ds-kind">${escapeHtml(i18n.t('kind_' + ds.kind))}</div>
       </div>
     </div>
   `).join('');

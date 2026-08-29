@@ -34,6 +34,7 @@ var webFS embed.FS
 // Deps 服务器依赖。
 type Deps struct {
 	Cfg             *config.RuntimeConfig
+	Version         string // 面板版本号（main 注入，/api/status 返回给前端关于页）
 	ConfigStore     *service.ConfigStore
 	PreIPStore      *service.PreIPStore
 	ResultStore     *service.ResultStore
@@ -512,6 +513,7 @@ func (d *Deps) statusHandler(w http.ResponseWriter, r *http.Request) {
 		"subconverter": d.SubscriptionSvc.SubConverterStatus(),
 		"runtime":      d.SubscriptionSvc.RuntimeStatus(),
 		"stats":        d.Stats.Snapshot(),
+		"version":      d.Version,
 	}
 	writeJSON(w, http.StatusOK, status)
 }
@@ -1239,11 +1241,13 @@ func writeZipEntry(targetPath string, f *zip.File) error {
 }
 
 // logsHandler GET /api/logs?lines=N - 读取日志尾部（默认 200 行，上限 2000）
+// 日志文件尚未创建（如刚换工作目录）时返回空内容而非 404，前端展示「暂无日志」。
 func (d *Deps) logsHandler(w http.ResponseWriter, r *http.Request) {
 	lines := clampInt(atoiOr(r.URL.Query().Get("lines"), 200), 10, 2000)
 	data, err := os.ReadFile(logFilePath)
 	if err != nil {
-		writeJSONError(w, http.StatusNotFound, "log file not found")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprint(w, "")
 		return
 	}
 	all := strings.Split(strings.TrimRight(string(data), "\n"), "\n")

@@ -870,6 +870,7 @@ body { overflow-x: hidden; } /* 同上，双保险 */
   color: var(--md-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap; /* 中文双字表头（如「行号」）不再折行 */
   border-bottom: 1px solid var(--md-outline-variant);
 }
 .data-table tbody tr {

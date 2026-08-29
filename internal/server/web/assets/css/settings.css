@@ -39,22 +39,6 @@
   word-break: break-all;
 }
 
-.sc-tip {
-  background: var(--md-surface-container);
-  padding: 10px 14px;
-  border-radius: var(--shape-md);
-  line-height: 1.55;
-  font-size: 0.82rem;
-}
-.sc-tip code {
-  font-family: 'Roboto Mono', monospace;
-  font-size: 0.9em;
-  background: var(--md-surface-container-highest);
-  padding: 1px 6px;
-  border-radius: var(--shape-xs);
-  color: var(--md-primary);
-  word-break: break-all;
-}
 .sc-list {
   list-style: none;
   padding: 0;
@@ -68,8 +52,11 @@
   padding-left: 4px;
 }
 
-/* 配置文件查看器 */
+/* 配置文件查看器：占满卡片宽度（textarea 默认窄条，必须显式拉伸） */
 .config-viewer {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
   resize: vertical;
   background: var(--md-surface-container);
   border-radius: var(--shape-md);
@@ -87,8 +74,11 @@
   border: 1px solid var(--md-outline-variant);
 }
 
-/* 日志查看器 */
+/* 日志查看器：占满卡片宽度 */
 .log-viewer {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
   background: #1a1a1a;
   color: #e0e0e0;
   border-radius: var(--shape-md);
@@ -111,22 +101,24 @@
   border-radius: 4px;
 }
 
-/* 移动端：保存按钮 sticky 在卡片底部，避免长表单需滚动到最底 */
+/* 移动端：卡片底部操作条 sticky 在 viewport 底部，避免长表单需滚动到最底。
+   仅作用于 .card-actions 容器——不得命中按钮自身（否则按钮实色会被
+   半透明背景覆盖变浅、形状被负边距破坏，v1.3.0 实测踩坑） */
 @media (max-width: 720px) {
-  /* 卡片内最后一个 mt-4 按钮组 sticky 到 viewport 底部 */
-  .card.outlined .btn-filled.mt-4,
-  .card.outlined .flex.gap-2.mt-4 {
+  .card.outlined .card-actions {
     position: sticky;
     bottom: 8px;
     z-index: 5;
-    background: color-mix(in srgb, var(--md-surface-container-low) 95%, transparent);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    padding: 8px 12px;
+    background: var(--md-surface-container-low);
+    padding: 10px 12px;
     margin: 12px -16px -16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
     border-radius: 0 0 var(--shape-lg) var(--shape-lg);
     box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
   }
+  .card.outlined .card-actions .btn { flex: 0 1 auto; }
   /* 输入框高度统一（移动端 ≥44px） */
   .text-field input,
   .text-field select,
@@ -134,8 +126,15 @@
     min-height: 44px;
     font-size: 16px !important;
   }
-  /* 长说明区折叠为可滚动 */
-  .sc-tip { max-height: 100px; overflow-y: auto; }
+}
+
+/* 卡片底部操作条（保存/重启等按钮容器）：hint 在前、操作条永远收尾，
+   移动端 sticky 时不会遮挡任何说明文字 */
+.card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 /* ---- 生成配置卡（gen） ---- */

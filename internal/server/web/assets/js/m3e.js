@@ -48,7 +48,7 @@ const translations = {
   'zh': {
     'dashboard': '仪表盘', 'nodes': '节点配置', 'selector': '优选 IP', 'settings': '设置',
     'ok': '知道了', 'cancel': '取消', 'confirm': '确定',
-    'app_title': 'edt_panel 订阅管理', 'refresh': '刷新', 'add': '添加', 'batch': '批量',
+    'app_title': 'edt 面板', 'brand': 'edt 面板', 'on': '开', 'off': '关', 'refresh': '刷新', 'add': '添加', 'batch': '批量',
     'import': '导入', 'export': '导出', 'sort': '排序', 'select': '选择',
     'search_placeholder': '搜索名称 / IP / 优选 IP…',
     'nodes_title': '节点配置', 'nodes_subtitle': '管理 vless.txt 节点列表 · 支持 增删改查、批量添加、拖拽排序',
@@ -90,12 +90,12 @@ const translations = {
     'gen_save_hint': '保存后需重启服务生效；手动模式取值仅作为面板不可用时的回落默认。',
     'sc_bridge': 'subconverter 桥接', 'sc_subtitle': '异构格式转换后端', 'mode': '模式',
     'remote_addr': '远程地址', 'local_port': '本地端口',
-    'config_file': '配置文件', 'save_btn': '保存', 'config_subtitle': 'config.yml', 'config_save_hint': '保存时自动校验并热重载；app.host/port/debug 等少数项需重启（可点「重启服务」立即生效）', 'copy_all': '复制全部', 'restart_service': '重启服务', 'cd_restart_title': '重启服务', 'cd_restart_content': '确定要重启 edt_panel 服务吗？重启期间订阅与面板将短暂不可用。', 't_restarting': '服务正在重启，等待恢复…', 't_restart_fail': '重启失败', 't_config_hot_ok': '已保存，配置已热生效', 't_config_saved_partial': '已保存，以下项需重启生效：{items}', 't_config_invalid': '配置校验失败，未保存',
+    'config_file': '配置文件', 'save_btn': '保存', 'config_subtitle': 'config.yml', 'config_save_hint': '保存时自动校验并热重载；app.host/port/debug 等少数项需重启（可点「重启服务」立即生效）', 'copy_all': '复制全部', 'restart_service': '重启服务', 'cd_restart_title': '重启服务', 'cd_restart_content': '确定要重启 edt 面板服务吗？重启期间订阅与面板将短暂不可用。', 't_restarting': '服务正在重启，等待恢复…', 't_restart_fail': '重启失败', 't_config_hot_ok': '已保存，配置已热生效', 't_config_saved_partial': '已保存，以下项需重启生效：{items}', 't_config_invalid': '配置校验失败，未保存',
     'data_backup': '数据备份与恢复', 'backup_subtitle': '导出 / 导入 data 目录',
     'backup_desc': '备份包含 vless.txt、result.csv、pre_ip.txt、stats.json 等数据文件。恢复会覆盖现有 data 目录。',
     'download_backup': '下载备份', 'restore_backup': '恢复备份',
     'run_log': '运行日志', 'log_subtitle': '最近 200 行',
-    'about': '关于', 'about_subtitle': 'edt_panel 订阅管理服务', 'version': '版本', 'runtime': '运行时',
+    'about': '关于', 'about_subtitle': 'edt 面板 · 订阅管理服务', 'version': '版本', 'about_desc': '纯 Go 单文件实现，无外部运行时依赖。',
     'ui': 'UI', 'source': '源码',
     'uuid_card': 'UUID', 'uuid_subtitle': '动态/静态订阅标识', 'get': '获取', 'copy': '复制', 'clear': '清除',
     'ip_card': '首选测速 IP', 'ip_card_subtitle': 'result.csv 首行', 'get_ip': '获取', 'copy_ip': '复制 IP',
@@ -120,8 +120,7 @@ const translations = {
     'th_row_num': '行号', 'th_proxy_ip': 'ProxyIP', 'th_yx_ip': '优选 IP', 'th_name': '名称', 'th_actions': '操作', 'th_select': '选择',
     // settings 关于 kv
     'kv_version': '版本', 'kv_runtime': '运行时', 'kv_ui': 'UI', 'kv_source': '源码',
-    'kv_value_runtime': 'Go 单二进制', 'kv_value_ui': 'Material Design 3 Expressive', 'kv_value_source': 'edt (Go 1.21+)',
-    'about_desc': '由原 Python Flask 项目重写为纯 Go 实现，无外部运行时依赖。',
+    'kv_value_ui': 'Material Design 3 Expressive', 'kv_value_source': 'github.com/masgzy/edgetunnel_panel',
     // toast 消息
     't_copied': '已复制到剪贴板', 't_copy_fail': '复制失败，请手动选择文本',
     't_uuid_ok': 'UUID 获取成功', 't_uuid_fail': '获取 UUID 失败：',
@@ -143,7 +142,7 @@ const translations = {
     't_no_ip_node': '此节点没有有效 IP', 't_history_cleared': '历史已清空',
     't_backup_start': '开始下载备份', 't_restore_ok': '恢复完成：', 't_restore_fail': '恢复失败：',
     't_load_fail': '加载失败：', 't_refreshed': '已刷新', 't_set_cur_ok': '已设为当前：',
-    't_set_ok': '已设置', 't_pre_ip_empty': '前缀和 IP 都不能为空', 't_config_not_loaded': '配置未加载', 't_config_saved': '配置已保存，重启生效', 't_config_save_fail': '保存失败', 't_sc_installed': 'subconverter 安装成功', 't_sc_install_fail': '安装失败', 'sc_tip': 'edt_panel 原生支持 vless/mihomo，subconverter 用于 clashr/surge/quanx 等格式转换。保存后需重启生效。', 'general_settings': '通用设置', 'general_subtitle': '订阅端口 / 默认模板 / 偏好', 'history_limit': '订阅历史显示数量', 'log_lines': '实时日志显示行数',
+    't_set_ok': '已设置', 't_pre_ip_empty': '前缀和 IP 都不能为空', 't_config_not_loaded': '配置未加载', 't_config_saved': '配置已保存，重启生效', 't_config_save_fail': '保存失败', 't_sc_installed': 'subconverter 安装成功', 't_sc_install_fail': '安装失败', 'sc_tip': 'edt 面板原生支持 vless/mihomo，subconverter 用于 clashr/surge/quanx 等格式转换。保存后需重启生效。', 'general_settings': '通用设置', 'general_subtitle': '订阅端口 / 默认模板 / 偏好', 'history_limit': '订阅历史显示数量', 'log_lines': '实时日志显示行数',
     'sub_gen_subtitle': '按需选择参数，生成订阅链接',
     'ds_id': '数据源 ID', 'sub_type': '订阅模板 type', 'output_format': '输出格式',
     'acl4ssr_ruleset': 'Clash 规则集（ACL4SSR）', 'default': '默认',
@@ -187,7 +186,9 @@ const translations = {
     // 日志
     'no_logs': '（暂无日志）',
     // subconverter 模式选项
-    'mode_off': 'Off（禁用）', 'mode_local': 'Local（本地二进制）', 'mode_remote': 'Remote（远程后端）',
+    'mode_off': '关闭（不启用）', 'mode_local': '本地二进制（内置）', 'mode_remote': '远程后端',
+    'native_only': '仅面板原生输出',
+    'kind_vless_file': '文本节点配置', 'kind_json_file': 'JSON 节点配置', 'kind_preferred_result': '优选结果生成', 'kind_public_snippets': '公开节点片段',
     'pick_remote': '-- 选择远程后端 --',
     'sc_bin_label': 'subconverter 二进制', 'sc_install_btn': '下载安装', 'sc_threads': '下载线程数',
     'sc_installed': '✓ 已安装', 'sc_not_installed': '✗ 未安装', 'sc_checking': '检查中…',
@@ -205,7 +206,7 @@ const translations = {
   'en': {
     'dashboard': 'Dashboard', 'nodes': 'Nodes', 'selector': 'Selector', 'settings': 'Settings',
     'ok': 'Got it', 'cancel': 'Cancel', 'confirm': 'OK',
-    'app_title': 'edt_panel Manager', 'refresh': 'Refresh', 'add': 'Add', 'batch': 'Batch',
+    'app_title': 'edt Panel', 'brand': 'edt Panel', 'on': 'On', 'off': 'Off', 'refresh': 'Refresh', 'add': 'Add', 'batch': 'Batch',
     'import': 'Import', 'export': 'Export', 'sort': 'Sort', 'select': 'Select',
     'search_placeholder': 'Search name / IP / yx_ip…',
     'nodes_title': 'Nodes', 'nodes_subtitle': 'Manage vless.txt node list · add/edit/delete/batch/drag-sort',
@@ -252,7 +253,7 @@ const translations = {
     'backup_desc': 'Backup includes vless.txt, result.csv, pre_ip.txt, stats.json. Restore overwrites current data dir.',
     'download_backup': 'Download Backup', 'restore_backup': 'Restore Backup',
     'run_log': 'Run Log', 'log_subtitle': 'Last 200 lines',
-    'about': 'About', 'about_subtitle': 'edt_panel Subscription Manager', 'version': 'Version', 'runtime': 'Runtime',
+    'about': 'About', 'about_subtitle': 'edt Panel Subscription Manager', 'version': 'Version', 'about_desc': 'Single-file pure Go implementation, no external runtime dependencies.',
     'ui': 'UI', 'source': 'Source',
     'uuid_card': 'UUID', 'uuid_subtitle': 'Dynamic/static subscription id', 'get': 'Get', 'copy': 'Copy', 'clear': 'Clear',
     'ip_card': 'Preferred Test IP', 'ip_card_subtitle': 'result.csv first row', 'get_ip': 'Get', 'copy_ip': 'Copy IP',
@@ -277,8 +278,7 @@ const translations = {
     'th_row_num': '#', 'th_proxy_ip': 'ProxyIP', 'th_yx_ip': 'Preferred IP', 'th_name': 'Name', 'th_actions': 'Actions', 'th_select': 'Select',
     // settings 关于 kv
     'kv_version': 'Version', 'kv_runtime': 'Runtime', 'kv_ui': 'UI', 'kv_source': 'Source',
-    'kv_value_runtime': 'Go single binary', 'kv_value_ui': 'Material Design 3 Expressive', 'kv_value_source': 'edt (Go 1.21+)',
-    'about_desc': 'Rewritten from Python Flask to pure Go, no external runtime deps.',
+    'kv_value_ui': 'Material Design 3 Expressive', 'kv_value_source': 'github.com/masgzy/edgetunnel_panel',
     // toast 消息
     't_copied': 'Copied to clipboard', 't_copy_fail': 'Copy failed, select manually',
     't_uuid_ok': 'UUID fetched', 't_uuid_fail': 'Get UUID failed: ',
@@ -345,6 +345,8 @@ const translations = {
     'no_logs': '(No logs yet)',
     // Subconverter mode options
     'mode_off': 'Off (disabled)', 'mode_local': 'Local (binary)', 'mode_remote': 'Remote (backend)',
+    'native_only': 'Native output only',
+    'kind_vless_file': 'Plain-text nodes', 'kind_json_file': 'JSON nodes', 'kind_preferred_result': 'Preferred-IP result', 'kind_public_snippets': 'Public snippets',
     'pick_remote': '-- Pick a remote backend --',
     'sc_bin_label': 'subconverter Binary', 'sc_install_btn': 'Install', 'sc_threads': 'Download threads',
     'sc_installed': '✓ Installed', 'sc_not_installed': '✗ Not installed', 'sc_checking': 'Checking…',
@@ -389,6 +391,8 @@ export const i18n = {
     // 更新语言切换 icon
     const icon = document.querySelector('[data-lang-icon]');
     if (icon) icon.textContent = this.get() === 'zh' ? 'language' : 'translate';
+    // 语言切换后重跑图标 codepoint 替换（apply 会把图标 span 文本改回明文图标名）
+    if (typeof applyIcons === 'function') applyIcons();
   },
 };
 
@@ -589,6 +593,8 @@ export function initPage() {
   autoRipple();
   bindGlobalShortcuts();
   registerServiceWorker();
+  applyIcons();
+  watchIcons();
   // 主题切换按钮
   const themeBtn = document.querySelector('[data-theme-toggle]');
   if (themeBtn) {
@@ -599,6 +605,56 @@ export function initPage() {
   if (langBtn) {
     langBtn.addEventListener('click', () => i18n.toggle());
   }
+}
+
+// ============ 图标 codepoint 直渲染 ============
+// 本地子集字体的 icon_names 变体不保证保留全部 ligature（带下划线的图标名
+// 在多款子集器中均会丢失连字规则），ligature 失败时页面会露出 "dashboard"
+// 之类的明文图标名。官方 codepoints 映射直达 PUA 码点，零 ligature 依赖。
+const ICON_CP = {
+  add: '\ue145', analytics: '\uef3e', archive: '\ue149', brightness_auto: '\ue1ab',
+  build_circle: '\uef48', cell_tower: '\uebba', check: '\ue668', check_circle: '\uf0be',
+  checklist: '\ue6b1', close: '\ue5cd', collections_bookmark: '\ue431', content_copy: '\ue14d',
+  dashboard: '\ue871', dark_mode: '\ue51c', delete: '\ue92e', delete_sweep: '\ue16c',
+  description: '\ue873', dns: '\ue875', download: '\uf090', edit: '\uf097',
+  edit_note: '\ue745', explore: '\ue87a', file_download: '\uf090', file_upload: '\uf09b',
+  history: '\ue8b3', hub: '\ue9f4', info: '\ue88e', install_mobile: '\uf2cd',
+  key: '\ue73c', label: '\ue893', language: '\uea07', light_mode: '\ue518',
+  link: '\ue250', list: '\ue896', monitor_heart: '\ueaa2', open_in_new: '\ue89e',
+  palette: '\ue40a', playlist_add: '\ue03b', qr_code_2: '\ue00a', radio_button_unchecked: '\ue836',
+  refresh: '\ue5d5', restart_alt: '\uf053', router: '\ue328', save: '\ue161',
+  search: '\uef7a', search_off: '\uea76', select_all: '\ue162', settings: '\ue8b8',
+  share: '\ue80d', speed: '\ue9e4', storage: '\ue1db', swap_vert: '\ue8d5',
+  sync_alt: '\uea18', terminal: '\ueb8e', tune: '\ue429', upload: '\uf09b',
+};
+
+// 把页面上所有图标 span 的明文图标名替换为 PUA 码点（幂等：PUA 已是单字符会跳过）
+export function applyIcons(root = document) {
+  root.querySelectorAll('.material-symbols-rounded').forEach((el) => {
+    const name = el.textContent.trim();
+    if (ICON_CP[name]) el.textContent = ICON_CP[name];
+  });
+}
+
+// 动态注入的 DOM（导航/toast/列表行）同样走 codepoint 渲染
+function watchIcons() {
+  if (!('MutationObserver' in window)) return;
+  const mo = new MutationObserver((muts) => {
+    for (const m of muts) {
+      m.addedNodes.forEach((n) => {
+        if (n.nodeType !== 1) return;
+        if (n.classList?.contains('material-symbols-rounded')) {
+          const name = n.textContent.trim();
+          if (ICON_CP[name]) n.textContent = ICON_CP[name];
+        }
+        n.querySelectorAll?.('.material-symbols-rounded').forEach((el) => {
+          const name = el.textContent.trim();
+          if (ICON_CP[name]) el.textContent = ICON_CP[name];
+        });
+      });
+    }
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
 }
 
 // 注册 Service Worker（PWA 离线支持）
@@ -741,7 +797,7 @@ export function injectAppBar(title) {
   bar.innerHTML = `
     <div class="brand">
       <div class="logo"><span class="material-symbols-rounded">hub</span></div>
-      <span>edt_panel</span>
+      <span data-i18n="brand">edt 面板</span>
     </div>
     ${title ? `<span class="title-medium text-on-surface-variant" style="margin-left:8px;">· ${escapeHtml(title)}</span>` : ''}
     <span class="spacer"></span>

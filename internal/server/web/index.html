@@ -8,7 +8,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141218">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <title>edt_panel · 仪表盘</title>
+  <title>edt 面板 · 仪表盘</title>
   <!-- 早期主题应用：在 CSS 加载前设置 data-theme，避免刷新时 FOUC（闪现浅色） -->
   <script>
   (function(){
@@ -19,16 +19,12 @@
     } catch(e) {}
   })();
   </script>
-  <link rel="preconnect" href="https://fonts.font.im">
-  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
-  <link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded"></noscript>
-  <link rel="stylesheet" href="https://fonts.font.im/css?family=Roboto+Flex">
+  <link rel="stylesheet" href="/assets/css/fonts.css">
   <link rel="stylesheet" href="/assets/css/m3e.css">
   <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
   <script src="/assets/vendor/theme.bundle.js"></script>
   <link rel="stylesheet" href="/assets/css/index.css">
-  <script src="https://fastly.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js" async defer></script>
+  <script src="/assets/vendor/qrcode.min.js" async defer></script>
   <link rel="manifest" href="/manifest.json">
 </head>
 <body>
@@ -103,9 +99,9 @@
           <div class="text-field">
             <label>subconverter</label>
             <select id="editSc" class="m3e-select">
-              <option value="off">Off</option>
-              <option value="local">Local</option>
-              <option value="remote">Remote</option>
+              <option value="off" data-i18n="mode_off">Off</option>
+              <option value="local" data-i18n="mode_local">Local</option>
+              <option value="remote" data-i18n="mode_remote">Remote</option>
             </select>
           </div>
           <div class="flex gap-2 mt-2">
@@ -302,8 +298,8 @@
           <div class="text-field">
             <label data-i18n="output_format">输出格式</label>
             <select id="genFormat">
-              <option value="vless">vless（edt_panel 原生）</option>
-              <option value="mihomo">mihomo（edt_panel 原生完整配置）</option>
+              <option value="vless">vless（edt 面板原生）</option>
+              <option value="mihomo">mihomo（edt 面板原生完整配置）</option>
               <option value="clash">clash（需 subconverter）</option>
               <option value="clashr">clashr（需 subconverter）</option>
               <option value="surge">surge（需 subconverter）</option>

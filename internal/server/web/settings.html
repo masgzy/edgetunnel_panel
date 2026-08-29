@@ -8,7 +8,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141218">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <title>edt_panel · 设置</title>
+  <title>edt 面板 · 设置</title>
   <!-- 早期主题应用 -->
   <script>
   (function(){
@@ -19,10 +19,7 @@
     } catch(e) {}
   })();
   </script>
-  <link rel="preconnect" href="https://fonts.font.im">
-  <link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="https://fonts.font.im/icon?family=Material+Symbols+Rounded"></noscript>
-  <link rel="stylesheet" href="https://fonts.font.im/css?family=Roboto+Flex">
+  <link rel="stylesheet" href="/assets/css/fonts.css">
   <link rel="stylesheet" href="/assets/css/m3e.css">
   <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
   <script src="/assets/vendor/theme.bundle.js"></script>
@@ -115,10 +112,9 @@
           <label data-i18n="local_port">本地端口</label>
           <input type="number" id="scPortInput" value="25500" min="1" max="65535" style="width:120px;">
         </div>
-        <button class="btn btn-filled mt-4" id="scSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
-        <div class="sc-tip body-small text-on-surface-variant mt-4">
-          <span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">info</span>
-          <span data-i18n="sc_tip">edt_panel 原生支持 vless/mihomo，subconverter 用于 clashr/surge/quanx 等格式转换。保存后需重启生效。</span>
+        <p class="body-small text-on-surface-variant mt-4" data-i18n="sc_tip">edt 面板原生支持 vless/mihomo，subconverter 用于 clashr/surge/quanx 等格式转换。保存后需重启生效。</p>
+        <div class="card-actions mt-2">
+          <button class="btn btn-filled" id="scSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
         </div>
       </div>
 
@@ -148,7 +144,9 @@
           <label data-i18n="log_lines">实时日志显示行数</label>
           <input type="number" id="settingsLogLines" value="50" min="10" max="500" style="width:100px;">
         </div>
-        <button class="btn btn-filled mt-4" id="settingsSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
+        <div class="card-actions mt-4">
+          <button class="btn btn-filled" id="settingsSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
+        </div>
       </div>
 
       <!-- 生成配置（协议与设置） -->
@@ -253,8 +251,10 @@
           </div>
         </div>
 
-        <button class="btn btn-filled mt-4" id="genSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
-        <p class="body-small text-on-surface-variant mt-2" data-i18n="gen_save_hint">保存后需重启服务生效；手动模式下的取值仅作为面板不可用时的回落默认。</p>
+        <p class="body-small text-on-surface-variant mt-4" data-i18n="gen_save_hint">保存后需重启服务生效；手动模式下的取值仅作为面板不可用时的回落默认。</p>
+        <div class="card-actions mt-2">
+          <button class="btn btn-filled" id="genSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
+        </div>
       </div>
 
       <!-- 配置文件编辑 -->
@@ -264,13 +264,13 @@
           <div class="titles"><div class="title" data-i18n="config_file">配置文件</div><div class="subtitle" data-i18n="config_subtitle">config.yml</div></div>
         </div>
         <textarea class="config-viewer" id="configViewer" rows="20" spellcheck="false">加载中…</textarea>
-        <div class="flex gap-2 mt-4" style="flex-wrap:wrap;">
+        <p class="body-small text-on-surface-variant mt-2" data-i18n="config_save_hint">保存时自动校验并热重载；app.host/port/debug 等少数项需重启（可点「重启服务」立即生效）</p>
+        <div class="card-actions mt-2">
           <button class="btn btn-filled" id="saveConfigBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
           <button class="btn btn-tonal" id="restartPanelBtn"><span class="material-symbols-rounded">restart_alt</span><span data-i18n="restart_service">重启服务</span></button>
           <button class="btn btn-outline" id="copyConfigBtn"><span class="material-symbols-rounded">content_copy</span><span data-i18n="copy_all">复制全部</span></button>
           <button class="btn btn-outline" id="reloadConfigBtn"><span class="material-symbols-rounded">refresh</span><span data-i18n="refresh">刷新</span></button>
         </div>
-        <p class="body-small text-on-surface-variant mt-2" data-i18n="config_save_hint">保存时自动校验并热重载；app.host/port/debug 等少数项需重启（可点「重启服务」立即生效）</p>
       </div>
 
       <!-- 数据备份 -->
@@ -304,12 +304,11 @@
           <div class="titles"><div class="title" data-i18n="about">关于</div><div class="subtitle" data-i18n="about_subtitle">edt_panel 订阅管理服务</div></div>
         </div>
         <div class="kv-list">
-          <div class="kv-row"><span class="kv-label" data-i18n="kv_version">版本</span><span class="kv-value">1.0.0</span></div>
-          <div class="kv-row"><span class="kv-label" data-i18n="kv_runtime">运行时</span><span class="kv-value" data-i18n="kv_value_runtime">Go 单二进制</span></div>
+          <div class="kv-row"><span class="kv-label" data-i18n="kv_version">版本</span><span class="kv-value" id="aboutVersion">…</span></div>
           <div class="kv-row"><span class="kv-label" data-i18n="kv_ui">UI</span><span class="kv-value" data-i18n="kv_value_ui">Material Design 3 Expressive</span></div>
-          <div class="kv-row"><span class="kv-label" data-i18n="kv_source">源码</span><span class="kv-value" data-i18n="kv_value_source">edt (Go 1.21+)</span></div>
+          <div class="kv-row"><span class="kv-label" data-i18n="kv_source">源码</span><span class="kv-value" data-i18n="kv_value_source">github.com/masgzy/edgetunnel_panel</span></div>
         </div>
-        <p class="body-small text-on-surface-variant mt-4">由原 Python Flask 项目重写为纯 Go 实现，无外部运行时依赖。</p>
+        <p class="body-small text-on-surface-variant mt-4" data-i18n="about_desc">纯 Go 单文件实现，无外部运行时依赖。</p>
       </div>
     </main>
     <nav class="nav-bar" data-nav></nav>

@@ -9,7 +9,9 @@
 #   - softprops/action-gh-release@v3 （v3.0.2）
 #
 # 产物命名 edt_panel_<os>_<arch>[_<arm|gomips>].tar.gz|zip：
-#   android_arm64            # Termux 等 Android 终端环境（CGO=0，PIE）
+#   android_arm64/arm        # Android 5+ 终端（Termux/adb）。NDK+CGO 构建：bionic 的
+#                            # getaddrinfo 才能走系统 DNS——纯静态 CGO=0 构建在 Android 上
+#                            # 读不到 /etc/resolv.conf 会 DNS 解析失败（Android 5+ 实测）
 #   darwin_amd64/arm64       # macOS Intel / Apple Silicon
 #   linux_386/amd64/arm64    # Linux x86 32位 / 64位 / ARM64
 #   linux_armv5/armv6/armv7  # Linux ARM 各代（GOARM）
@@ -40,7 +42,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { id: android_arm64,  goos: android, goarch: arm64 }
+          - { id: android_arm64, goos: android, goarch: arm64, cc: aarch64-linux-android21-clang }
+          - { id: android_arm,   goos: android, goarch: arm,  goarm: "7", cc: armv7a-linux-androideabi21-clang }
           - { id: darwin_amd64,   goos: darwin,  goarch: amd64 }
           - { id: darwin_arm64,   goos: darwin,  goarch: arm64 }
           - { id: linux_386,      goos: linux,   goarch: "386" }
@@ -71,12 +74,45 @@ jobs:
           go-version: 'stable'
           cache-dependency-path: go.sum
 
+      # Android 目标需 NDK 工具链（cgo resolver 走 bionic getaddrinfo，
+      # 解决纯静态构建在 Android 上 DNS 解析失败；其余平台跳过此步）。
+      # 直下官方 zip + actions/cache（setup-ndk 的版本清单不含 r27c，弃用）
+      - name: Cache Android NDK
+        if: matrix.goos == 'android'
+        id: ndk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/ndk
+          key: android-ndk-r27c-linux-x86_64
+
+      - name: Setup Android NDK
+        if: matrix.goos == 'android'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d "$HOME/ndk/android-ndk-r27c" ]; then
+            mkdir -p "$HOME/ndk"
+            curl -fsSL --retry 3 -o /tmp/ndk.zip \
+              "https://dl.google.com/android/repository/android-ndk-r27c-linux.zip"
+            unzip -q /tmp/ndk.zip -d "$HOME/ndk"
+            rm -f /tmp/ndk.zip
+          fi
+          echo "NDK_ROOT=$HOME/ndk/android-ndk-r27c" >> "$GITHUB_ENV"
+
       - name: Build and stage
         shell: bash
+        env:
+          NDK_ROOT: ${{ env.NDK_ROOT }}
         run: |
           set -euo pipefail
           EXT=''
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT='.exe'; fi
+          if [ "${{ matrix.goos }}" = "android" ]; then
+            # GOOS=android + cgo：DNS 走 bionic resolver；API 21 = Android 5.0+；
+            # 产物默认 PIE（Android 5+ 仅允许 PIE）
+            export CGO_ENABLED=1
+            export CC="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/${{ matrix.cc }}"
+          fi
           mkdir -p "package/${{ matrix.id }}"
           cp README.md config.example.yml install_subconverter.sh "package/${{ matrix.id }}/"
           go build -trimpath -ldflags='-s -w' -o "package/${{ matrix.id }}/edt_panel${EXT}" .

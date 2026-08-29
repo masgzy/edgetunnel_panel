@@ -99,7 +99,8 @@ edt_panel 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudfla
 | `edt_panel_linux_mipsle.tar.gz` | MIPS 软浮点路由器（mips/mipsle 固定 softfloat） |
 | `edt_panel_darwin_arm64.tar.gz` | Apple Silicon macOS |
 | `edt_panel_windows_amd64.zip` | 64 位 Windows |
-| `edt_panel_android_arm64.tar.gz` | Android Termux 等终端环境 |
+| `edt_panel_android_arm64.tar.gz` | Android 5+（arm64，Termux / adb） |
+| `edt_panel_android_arm.tar.gz` | Android 5+（32 位 ARM） |
 
 每个 Release 附 `checksums.txt`（SHA256），建议校验后再使用：
 
@@ -291,8 +292,8 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o edt_linux_arm64 .
 
 - **CI**：每次 push / PR 在 Linux、macOS、Windows 三平台跑构建与静态检查，
   并以 `go.mod` 声明的 Go 底线版本常驻回归，保证最低工具链兼容性。
-- **Release**：推送 `v*` 形式的 tag 后自动交叉编译发布，覆盖 16 个目标：
-  `android_arm64`、`darwin_amd64/arm64`、`linux_386/amd64/arm64`、
+- **Release**：推送 `v*` 形式的 tag 后自动交叉编译发布，覆盖 17 个目标：
+  `android_arm64/arm`、`darwin_amd64/arm64`、`linux_386/amd64/arm64`、
   `linux_armv5/armv6/armv7`、`linux_mips/mips64/mips64le/mipsle`、
   `windows_386/amd64/arm64`。产物为可复现归档（tar 归零时间戳），附统一 SHA256 清单，
   tag 含 `-`（如 `v1.0.0-rc1`）会自动标记为预发布。
@@ -329,9 +330,11 @@ edt/
 <details>
 <summary><b>Android 上能用吗？</b></summary>
 
-可以。Release 提供 `android_arm64` 专用包，配合 Termux 直接运行；也可使用
-`linux_arm64` 包尝试。若要在 Termux 里使用本地 subconverter，推荐用 `android_arm64`
-包，其安装器会优先拉取 aarch64 架构的二进制。
+可以。Release 提供 `android_arm64`（arm64）与 `android_arm`（32 位）专用包，
+为 NDK + cgo 构建：DNS 走 Android 系统 resolver（bionic getaddrinfo），
+无静态交叉编译常见的域名解析失败问题；配合 Termux 直接运行。若要在
+Termux 里使用本地 subconverter，推荐用 `android_arm64` 包，其安装器会
+优先拉取 aarch64 架构的二进制。
 </details>
 
 <details>

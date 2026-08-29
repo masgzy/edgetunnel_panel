@@ -60,13 +60,18 @@ type app struct {
 	subSvc   *service.SubscriptionService
 }
 
+const (
+	// appVersion 面板版本号：CLI --version、启动横幅与 /api/status（设置页关于）共用。
+	appVersion = "1.0.0-alpha1"
+)
+
 func main() {
 	var cli CLI
 	ctx := kong.Parse(&cli,
 		kong.Name("edt"),
 		kong.Description("edt_panel - VLess 订阅管理服务"),
 		kong.UsageOnError(),
-		kong.Vars{"version": "1.3.0"},
+		kong.Vars{"version": appVersion},
 	)
 	_ = ctx
 
@@ -104,6 +109,7 @@ func main() {
 	var srv *http.Server
 	handler := server.New(server.Deps{
 		Cfg:             cfg,
+		Version:         appVersion,
 		ConfigStore:     a.cfgStore,
 		PreIPStore:      a.preIP,
 		ResultStore:     a.result,

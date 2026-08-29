@@ -20,6 +20,11 @@ async function init() {
   bindGenSettings();
   await Promise.all([loadSCConfig(), loadGeneralSettings(), loadGenSettings(), loadConfigFile(), loadLogs()]);
   connectLogWS();
+  // 关于页：版本号从 /api/status 动态取（与 CLI --version 同源），不再硬编码
+  try {
+    const st = await api('/api/status');
+    if (st.version) document.getElementById('aboutVersion').textContent = st.version;
+  } catch { /* 保持占位 */ }
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
@@ -51,10 +56,10 @@ function bindSeedPicker() {
   const custom = document.getElementById('seedCustom');
   const reset = document.getElementById('seedReset');
 
-  const cur = window.edt_panelColor?.current?.() || '#6750A4';
+  const cur = window.EDTColor?.current?.() || '#6750A4';
   if (custom) custom.value = cur;
   const apply = (hex) => {
-    window.edt_panelColor?.applySeed?.(hex);
+    window.EDTColor?.applySeed?.(hex);
     swatches.forEach(sw => sw.classList.toggle('selected', sw.dataset.seed.toLowerCase() === hex.toLowerCase()));
     toast(i18n.t('t_seed_ok'));
   };
@@ -66,7 +71,7 @@ function bindSeedPicker() {
   swatches.forEach(sw => sw.addEventListener('click', () => apply(sw.dataset.seed)));
   custom?.addEventListener('input', (e) => apply(e.target.value));
   reset?.addEventListener('click', () => {
-    window.edt_panelColor?.reset?.();
+    window.EDTColor?.reset?.();
     swatches.forEach(sw => sw.classList.remove('selected'));
     if (custom) custom.value = '#6750A4';
     toast(i18n.t('t_seed_ok'));
