@@ -14,10 +14,10 @@
 #   linux_386/amd64/arm64    # Linux x86 32位 / 64位 / ARM64
 #   linux_armv5/armv6/armv7  # Linux ARM 各代（GOARM）
 #   linux_mips(64)(le)       # 路由器等环境，mips/mipsle 固定 GOMIPS=softfloat（软浮点兼容面最广）
-#   windows_386/amd64/arm64  # Windows（zip 包，内含 edt.exe）
+#   windows_386/amd64/arm64  # Windows（zip 包，内含 edt_panel.exe）
 #
 # 归档内含：edt_panel(.exe) + config.example.yml + install_subconverter.sh + README.md
-#           + data/mihomo/template.yaml（mihomo 模板示例）
+#           （mihomo 订阅已内置生成，v1.3.0 起不再随包分发模板示例）
 
 name: Release
 
@@ -79,9 +79,6 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT='.exe'; fi
           mkdir -p "package/${{ matrix.id }}"
           cp README.md config.example.yml install_subconverter.sh "package/${{ matrix.id }}/"
-          # mihomo 模板示例随包分发（files.mihomo_template 默认指向该路径）
-          mkdir -p "package/${{ matrix.id }}/data/mihomo"
-          cp data/mihomo/template.yaml "package/${{ matrix.id }}/data/mihomo/template.yaml"
           go build -trimpath -ldflags='-s -w' -o "package/${{ matrix.id }}/edt_panel${EXT}" .
           chmod 755 "package/${{ matrix.id }}/edt_panel${EXT}" \
                     "package/${{ matrix.id }}/install_subconverter.sh"
