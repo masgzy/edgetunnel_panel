@@ -112,8 +112,19 @@ func Load(rootDir string) (*RuntimeConfig, error) {
 	if err := ensureConfigFile(rootDir); err != nil {
 		return nil, err
 	}
+	return LoadFrom(rootDir, "config.yml")
+}
 
-	data, err := readConfigYAML(rootDir)
+// LoadFrom 从 rootDir 下指定文件名加载配置（语义与 Load 一致，但：
+// 不触发缺失初始化，供面板「配置文件」保存前的完整校验复用——
+// 校验通过即代表正式写盘后 Load 必然成功）。
+func LoadFrom(rootDir, filename string) (*RuntimeConfig, error) {
+	if rootDir == "" {
+		rootDir = "."
+	}
+	rootDir, _ = filepath.Abs(rootDir)
+
+	data, err := readConfigYAML(rootDir, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +155,7 @@ func Load(rootDir string) (*RuntimeConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	loginURL, loginPassword, userinfoExpire, err := parseAuthSection(sections.auth)
+	loginURL, loginPassword, userinfoExpire, err := parseAuthSection(sections.auth, controlDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -199,9 +210,9 @@ func ensureConfigFile(rootDir string) error {
 	return fmt.Errorf("检测到 config.yml 不存在，已根据 config.example.yml 初始化。请先编辑 config.yml 后再重新启动")
 }
 
-// readConfigYAML 读取并解析 config.yml，顶层必须是对象映射。
-func readConfigYAML(rootDir string) (map[string]interface{}, error) {
-	raw, err := os.ReadFile(filepath.Join(rootDir, "config.yml"))
+// readConfigYAML 读取并解析指定配置文件，顶层必须是对象映射。
+func readConfigYAML(rootDir, filename string) (map[string]interface{}, error) {
+	raw, err := os.ReadFile(filepath.Join(rootDir, filename))
 	if err != nil {
 		return nil, fmt.Errorf("读取 config.yml 失败: %w", err)
 	}
@@ -263,14 +274,19 @@ func parseAppSection(m map[string]interface{}) (host string, port int, debug boo
 }
 
 // parseRemoteSection 解析 remote 节：control_domain / admin_url / request_timeout / subscription_port。
+// admin_url 可省略：默认由 control_domain（base）拼接为
+// https://<control_domain>/admin/config.json；仅当控制端路径非默认时才需显式配置。
 func parseRemoteSection(m map[string]interface{}) (controlDomain, adminURL string, timeout, subPort int, err error) {
 	controlDomainI, err := requireValue(m, "control_domain", "remote")
 	if err != nil {
 		return "", "", 0, 0, err
 	}
-	adminURLI, err := requireValue(m, "admin_url", "remote")
-	if err != nil {
-		return "", "", 0, 0, err
+	controlDomain = strings.TrimSpace(fmt.Sprintf("%v", controlDomainI))
+	if v, ok := m["admin_url"]; ok && v != nil {
+		adminURL = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if adminURL == "" {
+		adminURL = "https://" + normalizeBaseHost(controlDomain) + "/admin/config.json"
 	}
 	timeoutI, err := requireValue(m, "request_timeout", "remote")
 	if err != nil {
@@ -288,14 +304,19 @@ func parseRemoteSection(m map[string]interface{}) (controlDomain, adminURL strin
 	if err != nil {
 		return "", "", 0, 0, err
 	}
-	return fmt.Sprintf("%v", controlDomainI), fmt.Sprintf("%v", adminURLI), timeout, subPort, nil
+	return controlDomain, adminURL, timeout, subPort, nil
 }
 
 // parseAuthSection 解析 auth 节；口令优先取环境变量 EDT_LOGIN_PASSWORD。
-func parseAuthSection(m map[string]interface{}) (loginURL, loginPassword, userinfoExpire string, err error) {
-	loginURLI, err := requireValue(m, "login_url", "auth")
-	if err != nil {
-		return "", "", "", err
+// login_url / userinfo_expire 均可省略：
+//   - login_url 默认由 control_domain 拼接为 https://<control_domain>/login；
+//   - userinfo_expire 默认 2030-01-01（客户端订阅页的到期展示）。
+func parseAuthSection(m map[string]interface{}, controlDomain string) (loginURL, loginPassword, userinfoExpire string, err error) {
+	if v, ok := m["login_url"]; ok && v != nil {
+		loginURL = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if loginURL == "" {
+		loginURL = "https://" + normalizeBaseHost(controlDomain) + "/login"
 	}
 	loginPasswordCfg, err := requireValue(m, "login_password", "auth")
 	if err != nil {
@@ -305,11 +326,30 @@ func parseAuthSection(m map[string]interface{}) (loginURL, loginPassword, userin
 	if loginPassword == "" {
 		loginPassword = fmt.Sprintf("%v", loginPasswordCfg)
 	}
-	userinfoExpireI, err := requireValue(m, "userinfo_expire", "auth")
-	if err != nil {
-		return "", "", "", err
+	if v, ok := m["userinfo_expire"]; ok && v != nil {
+		userinfoExpire = strings.TrimSpace(fmt.Sprintf("%v", v))
 	}
-	return fmt.Sprintf("%v", loginURLI), loginPassword, fmt.Sprintf("%v", userinfoExpireI), nil
+	if userinfoExpire == "" {
+		userinfoExpire = "2030-01-01 00:00:00+08:00"
+	}
+	return loginURL, loginPassword, userinfoExpire, nil
+}
+
+// normalizeBaseHost 允许 control_domain 携带 scheme 或路径（如 https://example.com/），
+// 拼接默认地址前先归一化出裸主机名；避免拼出 https://https://x 这类坏 URL。
+func normalizeBaseHost(domain string) string {
+	domain = strings.TrimSpace(domain)
+	if i := strings.Index(domain, "://"); i >= 0 {
+		domain = domain[i+3:]
+	}
+	if i := strings.IndexAny(domain, "/?#"); i >= 0 {
+		domain = domain[:i]
+	}
+	domain = strings.TrimSuffix(domain, ":")
+	if i := strings.LastIndex(domain, "@"); i >= 0 { // 去掉可能的 user@ 前缀
+		domain = domain[i+1:]
+	}
+	return domain
 }
 
 // applySubConverterSettings 应用可选的 subconverter 桥接节；

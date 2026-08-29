@@ -55,6 +55,22 @@ func (c *ConfigStore) FilePath() string { return c.filePath }
 // Variables 返回变量表。
 func (c *ConfigStore) Variables() map[string]config.VariableSource { return c.variables }
 
+// Reload 热更新配置（配置重载时调用）：替换文件路径与变量表，
+// 与构造函数同样保证新路径的父目录存在。
+func (c *ConfigStore) Reload(filePath, nrtFile string, variables map[string]config.VariableSource) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if dir := filepath.Dir(filePath); dir != "" && dir != "." {
+		_ = os.MkdirAll(dir, 0o755)
+	}
+	if dir := filepath.Dir(nrtFile); dir != "" && dir != "." {
+		_ = os.MkdirAll(dir, 0o755)
+	}
+	c.filePath = filePath
+	c.nrtFile = nrtFile
+	c.variables = variables
+}
+
 // FindDuplicate 查找与给定 ip 或 name 匹配的现有节点，返回可见行号（1-based）。
 // ip 或 name 任一匹配即视为重复。未找到返回 0。
 func (c *ConfigStore) FindDuplicate(ip, name string) (int, error) {

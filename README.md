@@ -81,6 +81,8 @@ edt_panel 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudfla
 - PWA：可安装到主屏，资源 ETag + gzip 高效缓存
 - 备份 / 恢复：一键打包 `data/` 目录为 zip 下载，或上传 zip 恢复（含路径穿越防护）
 - 设置页内置 config.yml 编辑器与运行日志查看器（WebSocket 实时推送）
+- 配置保存即校验（与启动加载同一套解析器，坏配置拒绝写盘）并热重载运行时；
+  仅 `app.host/port/debug` 等监听参数需重启，控制台内一键重启立即生效
 
 ## 快速开始
 
@@ -110,7 +112,7 @@ sha256sum -c checksums.txt --ignore-missing
 ```bash
 tar -xzf edt_panel_linux_amd64.tar.gz
 chmod +x edt_panel
-./edt
+./edt_panel
 ```
 
 > 首次不带配置启动时，edt_panel 会在当前目录生成一份带注释的 `config.yml` 模板然后退出，
@@ -125,17 +127,20 @@ auth:
   login_password: CHANGE_ME        # 控制台登录口令，务必修改！留空则完全关闭鉴权
 
 remote:
-  control_domain: example.com      # 你的服务域名（用于订阅 SNI 与链接生成）
-  admin_url: https://example.com/admin/config.json   # 远程面板查询地址（UUID 服务依赖）
+  control_domain: example.com      # 控制端域名（base）：admin_url / login_url 默认由它拼接
 
 app:
   port: 5001                       # 控制台监听端口
 ```
 
+> `remote.admin_url` 与 `auth.login_url` 可省略：默认拼接为
+> `https://<control_domain>/admin/config.json` 与 `https://<control_domain>/login`；
+> 仅当控制端路径非默认时才需要显式配置。`auth.userinfo_expire` 同样可省略（默认 2030-01-01）。
+
 ### 3. 运行
 
 ```bash
-./edt -c config.yml
+./edt_panel -c config.yml
 ```
 
 常用命令行参数（均可省略，优先级高于配置文件）：

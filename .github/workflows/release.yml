@@ -17,6 +17,7 @@
 #   windows_386/amd64/arm64  # Windows（zip 包，内含 edt.exe）
 #
 # 归档内含：edt_panel(.exe) + config.example.yml + install_subconverter.sh + README.md
+#           + data/mihomo/template.yaml（mihomo 模板示例）
 
 name: Release
 
@@ -78,6 +79,9 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT='.exe'; fi
           mkdir -p "package/${{ matrix.id }}"
           cp README.md config.example.yml install_subconverter.sh "package/${{ matrix.id }}/"
+          # mihomo 模板示例随包分发（files.mihomo_template 默认指向该路径）
+          mkdir -p "package/${{ matrix.id }}/data/mihomo"
+          cp data/mihomo/template.yaml "package/${{ matrix.id }}/data/mihomo/template.yaml"
           go build -trimpath -ldflags='-s -w' -o "package/${{ matrix.id }}/edt_panel${EXT}" .
           chmod 755 "package/${{ matrix.id }}/edt_panel${EXT}" \
                     "package/${{ matrix.id }}/install_subconverter.sh"
@@ -113,7 +117,7 @@ jobs:
             d="${dir#dist-}"; d="${d%/}"
             chmod 755 "${dir}"/edt_panel* "${dir}"/install_subconverter.sh
             case "$d" in
-              windows_*) (cd "$dir" && zip -q -X -9 "../edt_panel_${d}.zip" *) ;;
+              windows_*) (cd "$dir" && zip -q -r -X -9 "../edt_panel_${d}.zip" *) ;;
               *)         (cd "$dir" && tar --owner=0 --group=0 --mtime='@0' \
                                   -czf "../edt_panel_${d}.tar.gz" *) ;;
             esac

@@ -29,6 +29,11 @@ func NewResultStore(filePath string) *ResultStore {
 	return &ResultStore{filePath: filePath}
 }
 
+// Reload 热更新 result.csv 路径（配置重载时调用；低频，读写风格与构造约定一致）。
+func (r *ResultStore) Reload(filePath string) {
+	r.filePath = filePath
+}
+
 // readRows 读取并解析结果文件全部行。
 func (r *ResultStore) readRows() ([]ResultRow, error) {
 	f, err := os.Open(r.filePath)

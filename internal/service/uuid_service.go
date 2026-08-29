@@ -142,6 +142,24 @@ func NewUUIDService(adminURL, runTimeFile, domain string, timeoutSec int) *UUIDS
 	}
 }
 
+// Reload 热更新远程面板对接参数（配置重载时调用）；
+// 同时清除内存快照，下一次请求按新配置重新拉取（磁盘 run_time 轮换记录保留）。
+func (u *UUIDService) Reload(adminURL, runTimeFile, domain string, timeoutSec int) {
+	if timeoutSec <= 0 {
+		timeoutSec = 15
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.adminURL = adminURL
+	u.runTimeFile = runTimeFile
+	u.domain = domain
+	u.timeout = time.Duration(timeoutSec) * time.Second
+	u.cachedUUID = ""
+	u.cachedDate = "1970-01-01"
+	u.genOK = false
+	u.usageOK = false
+}
+
 // SetAuthConfig 注入 auth 模块依赖的配置。
 func (u *UUIDService) SetAuthConfig(cfg module.AuthConfig) {
 	u.authConfig = cfg

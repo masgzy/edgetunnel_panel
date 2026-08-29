@@ -1,7 +1,7 @@
 // edt_panel Service Worker - 离线兜底
 // 策略：静态资源（/assets/）不做 SW 缓存——由 HTTP ETag 协商缓存负责（避免 SW 缓存导致的旧版 JS 问题）；
 // SW 仅拦截页面 HTML：网络优先，离线时回退缓存的同名页面。
-const CACHE_NAME = 'edt-v8';
+const CACHE_NAME = 'edt-v9';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

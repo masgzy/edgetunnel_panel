@@ -266,10 +266,11 @@
         <textarea class="config-viewer" id="configViewer" rows="20" spellcheck="false">加载中…</textarea>
         <div class="flex gap-2 mt-4" style="flex-wrap:wrap;">
           <button class="btn btn-filled" id="saveConfigBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
-          <button class="btn btn-tonal" id="copyConfigBtn"><span class="material-symbols-rounded">content_copy</span><span data-i18n="copy_all">复制全部</span></button>
+          <button class="btn btn-tonal" id="restartPanelBtn"><span class="material-symbols-rounded">restart_alt</span><span data-i18n="restart_service">重启服务</span></button>
+          <button class="btn btn-outline" id="copyConfigBtn"><span class="material-symbols-rounded">content_copy</span><span data-i18n="copy_all">复制全部</span></button>
           <button class="btn btn-outline" id="reloadConfigBtn"><span class="material-symbols-rounded">refresh</span><span data-i18n="refresh">刷新</span></button>
         </div>
-        <p class="body-small text-on-surface-variant mt-2" data-i18n="config_save_hint">保存后需重启服务生效</p>
+        <p class="body-small text-on-surface-variant mt-2" data-i18n="config_save_hint">保存时自动校验并热重载；app.host/port/debug 等少数项需重启（可点「重启服务」立即生效）</p>
       </div>
 
       <!-- 数据备份 -->

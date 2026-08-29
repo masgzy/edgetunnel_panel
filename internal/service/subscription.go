@@ -114,6 +114,29 @@ func (s *SubscriptionService) SetGenConfig(autoFromPanel, aggregateWorkerSub boo
 	s.genSet = true
 }
 
+// Reload 热更新订阅服务配置（配置重载时调用）。
+// 与 Set* 注入方法同一约定：低频调用；map 字段为整表替换，
+// 读端持有的旧引用继续可读（整表替换不并发写同一 map）。
+func (s *SubscriptionService) Reload(
+	nrtFile, mihomoTemplate, mihomoFile string,
+	port int,
+	profiles map[string]config.SubscriptionProfile,
+	defaultProfile string,
+	defaultByID map[string]string,
+	encodeB64 bool,
+	dataSources map[string]config.DataSourceConfig,
+) {
+	s.nrtFile = nrtFile
+	s.mihomoTemplate = mihomoTemplate
+	s.mihomoFile = mihomoFile
+	s.port = port
+	s.profiles = profiles
+	s.defaultProfile = defaultProfile
+	s.defaultByID = defaultByID
+	s.encodeB64 = encodeB64
+	s.dataSources = dataSources
+}
+
 // resolveGenSettings 计算当前生效的生成配置：
 // 自动模式且面板快照可用 → 面板值；否则手动默认值；未注入时退回缺省。
 func (s *SubscriptionService) resolveGenSettings() config.GenSettings {

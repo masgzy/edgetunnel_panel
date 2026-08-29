@@ -56,6 +56,21 @@ func newWebAuth(password string) *webAuth {
 	return &webAuth{password: password, secret: secret, fails: map[string]*failRecord{}}
 }
 
+// SetPassword 热更新管理口令（config.yml 保存后的配置重载调用）。
+// 同时轮换会话签名密钥并清空失败计数：所有已签发会话立即失效，
+// 必须用新口令重新登录——避免旧口令的持有者保留有效会话。
+func (a *webAuth) SetPassword(password string) {
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		secret = []byte(fmt.Sprintf("edt-fallback-%d", time.Now().UnixNano()))
+	}
+	a.mu.Lock()
+	a.password = password
+	a.secret = secret
+	a.fails = map[string]*failRecord{}
+	a.mu.Unlock()
+}
+
 // enabled 报告是否启用了控制台鉴权（口令非空）。
 func (a *webAuth) enabled() bool { return a.password != "" }
 

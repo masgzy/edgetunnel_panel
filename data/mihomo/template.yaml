@@ -1,0 +1,27 @@
+# edt_panel mihomo 模板示例（占位符替换模式）
+#
+# 用途：config.yml files.mihomo_template 指向本文件时，面板按「模板替换」
+#       模式逐节点渲染 mihomo 配置；不使用该模式时无需修改本文件
+#       （面板内置 Full 模式会自动生成完整可用的 mihomo 配置）。
+#
+# 可用占位符（生成时逐节点替换）：
+#   [域名]   节点 SNI / Host（订阅模板 domain）
+#   [名称]   节点名称
+#   [UUID]   节点 UUID
+#   [代理IP] ProxyIP（可为空）
+#   [优选IP] 优选 IP/域名（可为空）
+#
+# 本文件即最小可用示例：按需增删字段（端口 / 传输层 / proxy-groups 等）。
+- name: "[名称]"
+  type: vless
+  server: [优选IP]
+  port: 8443
+  uuid: [UUID]
+  tls: true
+  servername: [域名]
+  network: ws
+  ws-opts:
+    path: /proxyip=[代理IP]?ed=2560
+    headers:
+      Host: [域名]
+  client-fingerprint: chrome

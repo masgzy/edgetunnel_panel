@@ -11,6 +11,7 @@ async function init() {
   bindConfigCopy();
   bindConfigSave();
   bindConfigReload();
+  bindRestartService();
   bindBackup();
   bindRestore();
   bindRefreshLogs();
@@ -410,15 +411,55 @@ function bindConfigSave() {
         headers: { 'Content-Type': 'text/plain' },
         body: text,
       });
+      const result = await resp.json().catch(() => ({}));
       if (resp.ok) {
-        ttoast('t_config_saved');
+        const needRestart = result.need_restart || [];
+        if (needRestart.length) {
+          // 少数监听参数无法热生效：提示重启（可点「重启服务」）
+          toast(i18n.t('t_config_saved_partial').replace('{items}', needRestart.join(', ')));
+        } else {
+          toast(i18n.t('t_config_hot_ok'));
+        }
       } else {
-        ttoast('t_config_save_fail');
+        // 校验失败：服务端拒绝写盘，展示具体错误行
+        ttoast('t_config_invalid', result.error || `HTTP ${resp.status}`);
       }
     } catch (err) {
       ttoast('t_config_save_fail', err.message);
     }
     btn.disabled = false;
+  });
+}
+
+// ---- 重启服务（优雅关闭后 exec 自身；Windows 返回错误提示） ----
+function bindRestartService() {
+  const btn = document.getElementById('restartPanelBtn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const ok = await confirmDialog(i18n.t('cd_restart_title'), i18n.t('cd_restart_content'));
+    if (!ok) return;
+    btn.disabled = true;
+    try {
+      const resp = await api('/api/restart', { method: 'POST' });
+      toast(resp.message || i18n.t('t_restarting'));
+      // 轮询等待服务恢复（重启通常 1~2s；最长等 30s）
+      const deadline = Date.now() + 30000;
+      const probe = setInterval(async () => {
+        try {
+          await fetch(url('/api/status'), { cache: 'no-store' });
+          clearInterval(probe);
+          location.reload();
+        } catch (e) {
+          if (Date.now() > deadline) {
+            clearInterval(probe);
+            btn.disabled = false;
+          }
+        }
+      }, 1500);
+    } catch (err) {
+      ttoast('t_restart_fail', err.message);
+      btn.disabled = false;
+    }
   });
 }
 

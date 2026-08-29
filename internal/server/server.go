@@ -43,6 +43,14 @@ type Deps struct {
 	WebPassword     string // Web 控制台登录口令；空 = 关闭鉴权（旧行为）
 	SCRestart       func() // 安装/更新 subconverter 后触发本地子进程重启（可 nil）
 
+	// 配置热重载与进程重启（main.go 注入；nil 时对应能力降级）：
+	// ReloadServices 把重载后的新配置应用到各业务服务，返回热生效项描述；
+	// RestartProc 优雅关闭后 exec 自身重启进程（Windows 返回错误提示手动重启）。
+	ReloadServices func(newCfg *config.RuntimeConfig) (reloaded []string, err error)
+	RestartProc    func() error
+
+	auth *webAuth // New 内部回填：configfile 保存后同步登录口令
+
 	convertSem chan struct{} // 转换并发闸门，New 时初始化
 }
 
@@ -61,6 +69,7 @@ func New(deps Deps) http.Handler {
 
 	// 登录鉴权（口令为空时不启用，行为与旧版一致）
 	auth := newWebAuth(deps.WebPassword)
+	deps.auth = auth // 回填给 handler：configfile 保存后同步登录口令
 	mux.HandleFunc("/login", auth.handleLogin)
 	mux.HandleFunc("/logout", auth.handleLogout)
 
@@ -143,6 +152,7 @@ func registerAPIRoutes(mux *http.ServeMux, deps *Deps) {
 		"/api/gen":          deps.genHandler,
 		"/api/restore":      deps.restoreHandler,
 		"/api/logs":         deps.logsHandler,
+		"/api/restart":      deps.restartHandler,
 	}
 	for path, h := range routes {
 		mux.HandleFunc(path, h)
@@ -621,27 +631,73 @@ func (d *Deps) exportHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-// configFileHandler GET/POST /api/configfile - 读取或保存 config.yml
-// GET：返回 config.yml 内容
-// POST：保存 config.yml（请求体为纯文本），需重启生效
+// configFileHandler GET/POST /api/configfile —— 面板内编辑 config.yml。
+//
+// GET：返回 config.yml 原文。
+// POST：保存前先写入临时文件并跑完整校验（与启动加载同一套解析器），
+// 校验通过才备份并原子替换正式文件，杜绝「存错配置下次起不来」；
+// 随后热重载运行时配置（服务层逐项应用 + 登录口令同步），
+// 无法热生效的项（app.host/port/debug）在 need_restart 中返回。
 func (d *Deps) configFileHandler(w http.ResponseWriter, r *http.Request) {
 	configPath := filepath.Join(d.Cfg.RootDir, "config.yml")
 	if r.Method == http.MethodPost {
-		body, err := io.ReadAll(r.Body)
+		body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		// 先备份
-		if old, err := os.ReadFile(configPath); err == nil {
-			os.WriteFile(configPath+".bak", old, 0o644)
-		}
-		if err := os.WriteFile(configPath, body, 0o644); err != nil {
+		nextPath := configPath + ".next"
+		if err := os.WriteFile(nextPath, body, 0o644); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		newCfg, err := config.LoadFrom(d.Cfg.RootDir, "config.yml.next")
+		if err != nil {
+			_ = os.Remove(nextPath)
+			writeJSONError(w, http.StatusBadRequest, "配置校验失败: "+err.Error())
+			return
+		}
+		// 校验通过：备份旧文件后原子替换
+		if old, rerr := os.ReadFile(configPath); rerr == nil {
+			_ = os.WriteFile(configPath+".bak", old, 0o644)
+		}
+		if err := os.Rename(nextPath, configPath); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		LogLine("config.yml 已更新，开始热重载")
+
+		// 热重载运行时配置（服务层逐个应用；个别失败不回滚，以磁盘为准）
+		reloaded := []string{}
+		if d.ReloadServices != nil {
+			if items, rerr := d.ReloadServices(newCfg); rerr != nil {
+				LogLine("config 热重载部分失败: %v", rerr)
+			} else {
+				reloaded = items
+			}
+		}
+		// 登录口令热更新（轮换会话密钥：旧会话全部失效，需重新登录）
+		if newCfg.LoginPassword != d.Cfg.LoginPassword && d.auth != nil {
+			d.auth.SetPassword(newCfg.LoginPassword)
+			reloaded = append(reloaded, "登录口令（旧会话已全部失效）")
+		}
+		// 无法热生效的监听参数：对比新旧值后提示重启
+		needRestart := []string{}
+		if newCfg.Host != d.Cfg.Host {
+			needRestart = append(needRestart, "app.host")
+		}
+		if newCfg.Port != d.Cfg.Port {
+			needRestart = append(needRestart, "app.port")
+		}
+		if newCfg.Debug != d.Cfg.Debug {
+			needRestart = append(needRestart, "app.debug")
+		}
+		d.Cfg = newCfg // 运行态配置快照切到新值
+
 		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"message": "saved, restart to take effect",
+			"message":      "saved",
+			"reloaded":     reloaded,
+			"need_restart": needRestart,
 		})
 		return
 	}
@@ -653,6 +709,27 @@ func (d *Deps) configFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write(data)
+}
+
+// restartHandler POST /api/restart —— 重启服务进程。
+// 由 main 注入的 RestartProc 优雅关闭监听后 exec 自身重启；
+// 未注入（如部分测试环境）返回 501。
+func (d *Deps) restartHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	if d.RestartProc == nil {
+		writeJSONError(w, http.StatusNotImplemented, "当前运行环境未启用进程重启")
+		return
+	}
+	if err := d.RestartProc(); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"message": "服务正在重启，稍后将自动恢复",
+	})
 }
 
 // scConfigHandler GET/POST /api/sc-config - 读取或保存 subconverter 配置

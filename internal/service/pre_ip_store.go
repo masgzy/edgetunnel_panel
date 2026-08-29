@@ -42,3 +42,8 @@ func (p *PreIPStore) Set(pre, ip string) error {
 	}
 	return os.WriteFile(p.filePath, []byte(pre+"\n"+ip), 0o644)
 }
+
+// Reload 热更新 pre_ip.txt 路径（配置重载时调用；低频，读写风格与构造约定一致）。
+func (p *PreIPStore) Reload(filePath string) {
+	p.filePath = filePath
+}
