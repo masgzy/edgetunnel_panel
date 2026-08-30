@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -57,7 +58,8 @@ func readAuthCache(path string) (cacheLine, bool) {
 // loginAndCache 登录远端面板换取 auth token，写入缓存后返回。
 // 登录基于 Set-Cookie 响应头解析 token 与过期时间。
 func loginAndCache(cfg AuthConfig) (string, error) {
-	body := "password=" + cfg.LoginPassword
+	// 表单体必须按 urlencoded 规则编码：口令含 & = + % 或非 ASCII 时原样拼接会被服务端误解
+	body := url.Values{"password": {cfg.LoginPassword}}.Encode()
 	req, err := http.NewRequest("POST", cfg.LoginURL, strings.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("构造登录请求失败: %w", err)

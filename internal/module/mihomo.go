@@ -53,9 +53,10 @@ func yamlStr(s string) string {
 			return strconv.Quote(s)
 		}
 	}
-	// 以空格开头/结尾或纯数字需要引号，避免 YAML 解析歧义
+	// 以空格开头/结尾、纯数字或以 "- " 开头的值需要引号，避免 YAML 解析歧义
+	// （节点名形如 "- test" 时输出 name: - test 会被当作序列项，配置直接损坏）
 	trimmed := strings.TrimSpace(s)
-	if trimmed != s || isAllDigits(trimmed) {
+	if trimmed != s || isAllDigits(trimmed) || strings.HasPrefix(s, "- ") {
 		return strconv.Quote(s)
 	}
 	return s

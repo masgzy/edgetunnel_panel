@@ -10,9 +10,11 @@ package module
 
 import (
 	"bufio"
+	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -137,11 +139,18 @@ func parseIntervalTolerance(p string, pg *ProxyGroupEntry) (bool, error) {
 	return true, nil
 }
 
+// maxACLSize 单份 ACL4SSR ini 的大小上限（2MB 足够万行规则）。
+const maxACLSize = 2 << 20
+
 // FetchACL4SSRIni 从 URL 获取 ini 内容（超时 10 秒），带本地缓存。
 // 缓存路径：data/acl4ssr-cache/<md5(url)>.ini，有效期 24 小时。
-func FetchACL4SSRIni(url string) (string, error) {
+//
+// 安全：/mihomo?config= 为匿名端点，抓取必须做 SSRF 防护——
+// 自定义 Dialer 在解析后逐 IP 校验，拒绝环回/私网/链路本地等目标；
+// 并限制响应体积，防止超大响应耗尽内存。
+func FetchACL4SSRIni(rawURL string) (string, error) {
 	cacheDir := filepath.Join("data", "acl4ssr-cache")
-	cacheFile := filepath.Join(cacheDir, fmt.Sprintf("%x.ini", md5.Sum([]byte(url))))
+	cacheFile := filepath.Join(cacheDir, fmt.Sprintf("%x.ini", md5.Sum([]byte(rawURL))))
 
 	if info, err := os.Stat(cacheFile); err == nil {
 		if time.Since(info.ModTime()) < 24*time.Hour {
@@ -151,8 +160,13 @@ func FetchACL4SSRIni(url string) (string, error) {
 		}
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DialContext: safeDialContext,
+		},
+	}
+	resp, err := client.Get(rawURL)
 	if err != nil {
 		// fetch 失败但有过期缓存，仍用过期缓存
 		if data, e := os.ReadFile(cacheFile); e == nil {
@@ -161,7 +175,7 @@ func FetchACL4SSRIni(url string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxACLSize))
 	if err != nil {
 		return "", err
 	}
@@ -169,6 +183,35 @@ func FetchACL4SSRIni(url string) (string, error) {
 	_ = os.MkdirAll(cacheDir, 0o755)
 	_ = os.WriteFile(cacheFile, body, 0o644)
 	return content, nil
+}
+
+// safeDialContext SSRF 防护拨号器：解析出的每个 IP 都必须是公网单播地址。
+func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("地址格式非法 %q: %w", addr, err)
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("解析 %s 失败: %w", host, err)
+	}
+	var dialIP net.IP
+	for _, ip := range ips {
+		if isPublicUnicast(ip.IP) {
+			dialIP = ip.IP
+			break
+		}
+	}
+	if dialIP == nil {
+		return nil, fmt.Errorf("拒绝请求：%s 解析到内网/环回/保留地址（防 SSRF）", host)
+	}
+	return (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(dialIP.String(), port))
+}
+
+// isPublicUnicast 仅放行全局单播地址（排除环回/私网/链路本地/未指定/组播）。
+func isPublicUnicast(ip net.IP) bool {
+	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() &&
+		!ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsUnspecified()
 }
 
 // BuildFromACL4SSRConfig 根据 ACL4SSR 配置生成 mihomo proxy-groups / rule-providers / rules。

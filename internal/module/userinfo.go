@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// cstZone 中国标准时间（UTC+8，无夏令时）。
+// 使用 FixedZone 而非 time.LoadLocation：容器/精简镜像/部分 Windows 环境可能
+// 缺少 tzdata，LoadLocation 失败会静默回退 UTC，导致日期数按 UTC 日期计算。
+var cstZone = time.FixedZone("CST", 8*3600)
+
 // UserinfoConfig userinfo 模块依赖。
 type UserinfoConfig struct {
 	Expire string // "2030-01-01 00:00:00+08:00"
@@ -61,11 +66,7 @@ func getUserinfo(expireStr string, pages, workers, max int64, useReal bool) stri
 		timestamp = dt.Unix()
 	}
 
-	loc, _ := time.LoadLocation("Asia/Shanghai")
-	now := time.Now().In(loc)
-	if now.Location() == nil {
-		now = time.Now()
-	}
+	now := time.Now().In(cstZone)
 
 	GB := int64(1024 * 1024 * 1024)
 	if useReal {
