@@ -104,7 +104,7 @@ async function loadStatus() {
     // 调用统计
     renderStats(st.stats || {});
   } catch {
-    document.getElementById('kvSc').textContent = 'unknown';
+    document.getElementById('kvSc').textContent = '—';
   }
 }
 

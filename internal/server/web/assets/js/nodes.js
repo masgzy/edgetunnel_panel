@@ -69,6 +69,11 @@ async function loadData() {
 
 async function silentRefresh() {
   if (isSortMode || isEditing) return;
+  // 行内新增/编辑产生 .edit-input，详情抽屉打开时行号可能因他人改动而错位——
+  // 期间跳过静默刷新，避免 30s 定时器清掉未保存输入或撑开过期数据
+  if (document.querySelector('.edit-input')) return;
+  const scrim = document.getElementById('drawerScrim');
+  if (scrim && !scrim.classList.contains('hidden')) return;
   try {
     data = await api('/config?type=get');
     renderTable();
