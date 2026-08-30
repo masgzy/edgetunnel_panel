@@ -65,7 +65,7 @@ type app struct {
 
 const (
 	// appVersion 面板版本号：CLI --version、启动横幅与 /api/status（设置页关于）共用。
-	appVersion = "1.0.0-alpha1"
+	appVersion = "1.0.0-alpha2"
 )
 
 func main() {
