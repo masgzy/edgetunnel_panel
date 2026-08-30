@@ -193,7 +193,7 @@ func withRequestLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if strings.HasPrefix(path, "/assets/") || path == "/favicon.svg" ||
-			path == "/manifest.webmanifest" || path == "/sw.js" || path == "/ws" {
+			path == "/manifest.json" || path == "/sw.js" || path == "/ws" {
 			next.ServeHTTP(w, r)
 			return
 		}

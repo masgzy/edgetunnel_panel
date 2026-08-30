@@ -41,6 +41,9 @@ type CLI struct {
 	Port   int    `short:"p" help:"覆盖监听端口"`
 	Debug  bool   `short:"d" long:"debug" help:"调试模式"`
 
+	// VersionFlag 支持 --version（打印 appVersion 后退出；取值来自 kong.Vars）
+	Version kong.VersionFlag
+
 	// subconverter 桥接
 	SCMode   string `long:"sc-mode" help:"subconverter 模式: off|local|remote" default:"off"`
 	SCRemote string `long:"sc-remote" help:"远程 subconverter 地址（如 https://api.v1.mk）"`
@@ -105,6 +108,9 @@ func main() {
 	go server.WatchLogFile()
 	ui.Printf(ui.DimStyle, "  - 实时日志: ws://%s/ws\n", cfg.Host+":"+strconv.Itoa(cfg.Port))
 
+	// 统计服务提升到 main 持有：退出时 Stop() 立即落盘最后一批计数
+	stats := service.NewStatsService(filepath.Join(cfg.RootDir, "data", "stats.json"))
+
 	// HTTP Server 先于回调构造：重启回调需要引用 srv 做优雅关闭
 	var srv *http.Server
 	handler := server.New(server.Deps{
@@ -115,17 +121,17 @@ func main() {
 		ResultStore:     a.result,
 		UUIDService:     a.uuid,
 		SubscriptionSvc: a.subSvc,
-		Stats:           service.NewStatsService(filepath.Join(cfg.RootDir, "data", "stats.json")),
+		Stats:           stats,
 		WebPassword:     cfg.LoginPassword,
 		SCRestart:       supRestartFunc(sup),
 		ReloadServices: func(newCfg *config.RuntimeConfig) ([]string, error) {
 			return reloadRuntime(cli, a, sup, newCfg)
 		},
-		RestartProc: func() error { return restartProc(srv, sup) },
+		RestartProc: func() error { return restartProc(srv, sup, stats) },
 	})
 	srv = newHTTPServer(cfg, handler)
 
-	runHTTP(srv, cfg, scMode, sup)
+	runHTTP(srv, cfg, scMode, sup, stats)
 }
 
 // reloadRuntime 把重载后的配置应用到运行中的各服务
@@ -184,7 +190,7 @@ func reloadRuntime(cli CLI, a *app, sup *scSupervisor, newCfg *config.RuntimeCon
 
 // restartProc 优雅关闭监听后 exec 自身重启进程（收到请求即刻异步执行，
 // 先让 HTTP 响应送达客户端）。Windows 无进程自替换能力，同步返回错误提示。
-func restartProc(srv *http.Server, sup *scSupervisor) error {
+func restartProc(srv *http.Server, sup *scSupervisor, stats *service.StatsService) error {
 	if runtime.GOOS == "windows" {
 		return fmt.Errorf("Windows 平台不支持进程内重启，请手动退出后重新启动")
 	}
@@ -199,6 +205,7 @@ func restartProc(srv *http.Server, sup *scSupervisor) error {
 		time.Sleep(500 * time.Millisecond) // 让重启响应先送达
 		ui.Println(ui.WarnStyle, ui.SymWarn+" 收到重启请求，正在重启服务…")
 		sup.Stop()
+		stats.Stop()
 		if srv != nil {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -459,7 +466,7 @@ func resolveSubConverterSettings(cli CLI, cfg *config.RuntimeConfig) (service.Su
 
 // runHTTP 打印访问地址，阻塞等待服务错误或退出信号。
 // 退出时优雅关闭 HTTP 并回收 subconverter 子进程（监督者统一管理），避免孤儿进程。
-func runHTTP(srv *http.Server, cfg *config.RuntimeConfig, scMode string, sup *scSupervisor) {
+func runHTTP(srv *http.Server, cfg *config.RuntimeConfig, scMode string, sup *scSupervisor, stats *service.StatsService) {
 	addr := srv.Addr
 	ui.Printf(ui.InfoStyle, "%s 监听 %s\n", ui.SymArrow, addr)
 	ui.Printf(ui.DimStyle, "  - 仪表盘  : http://%s/\n", addr)
@@ -487,6 +494,7 @@ func runHTTP(srv *http.Server, cfg *config.RuntimeConfig, scMode string, sup *sc
 	case err := <-serverErr:
 		ui.Println(ui.ErrorStyle, ui.SymFail+" 服务启动失败: "+err.Error())
 		sup.Stop()
+		stats.Stop()
 		os.Exit(1)
 	case <-sigCtx.Done():
 		ui.Println(ui.WarnStyle, ui.SymWarn+" 收到退出信号，正在关闭…")
@@ -494,6 +502,7 @@ func runHTTP(srv *http.Server, cfg *config.RuntimeConfig, scMode string, sup *sc
 		defer cancel()
 		_ = srv.Shutdown(shutdownCtx)
 		sup.Stop()
+		stats.Stop() // 优雅退出前落盘最近计数（persistLoop 最长 30s 才自动保存一次）
 	}
 }
 
