@@ -109,14 +109,15 @@ func (c *ConfigStore) BatchDelete(lines []int) (success, failed int) {
 	if err != nil {
 		return 0, len(lines)
 	}
-	sourceLines, failed := collectSourceLines(entries, lines)
+	sourceLines, failedPre := collectSourceLines(entries, lines)
 	if len(sourceLines) == 0 {
-		return
+		return 0, failedPre
 	}
 	success, failed, err = c.deleteSourceLines(sourceLines, len(lines))
 	if err != nil {
 		return 0, len(lines)
 	}
+	failed += failedPre // 映射阶段统计的越界失败不能被删除阶段的计数覆盖
 	return
 }
 
@@ -196,11 +197,25 @@ func (c *ConfigStore) MoveTo(visibleLine, targetLine int) error {
 		return err
 	}
 	newLines := reorderLines(allLines, srcLines[visibleLine-1], srcLines[targetLine-1])
-	// 规范化末尾换行
-	if len(newLines) > 0 {
-		newLines[len(newLines)-1] = strings.TrimRight(newLines[len(newLines)-1], "\n")
-	}
+	// 行尾归一化：防止原末行（无换行）被移到中间后与下一行粘连
+	newLines = normalizeLineEndings(newLines)
 	return os.WriteFile(c.filePath, []byte(strings.Join(newLines, "")), 0o644)
+}
+
+// normalizeLineEndings 重排/交换后的行集合行尾归一：
+// 除最后一行外每行必须以换行结尾，最后一行不带换行。
+// 否则"原本无换行的末行"被移动到中间时会与下一行粘连，损坏文件。
+func normalizeLineEndings(lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	for i := 0; i < len(lines)-1; i++ {
+		if !strings.HasSuffix(lines[i], "\n") {
+			lines[i] += "\n"
+		}
+	}
+	lines[len(lines)-1] = strings.TrimRight(lines[len(lines)-1], "\n")
+	return lines
 }
 
 // reorderLines 将源行 moveSrcLine 移动插入到 targetSrcLine 之前（1-based 行号）。
@@ -375,6 +390,8 @@ func (c *ConfigStore) SwapVisible(firstLine, secondLine int) error {
 		return err
 	}
 	lines[lineA-1], lines[lineB-1] = lines[lineB-1], lines[lineA-1]
+	// 行尾归一化：防止原末行（无换行）被交换到中间后与下一行粘连
+	lines = normalizeLineEndings(lines)
 	return os.WriteFile(c.filePath, []byte(strings.Join(lines, "")), 0o644)
 }
 
