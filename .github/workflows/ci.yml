@@ -1,6 +1,7 @@
 # CI：push / PR 到任意分支时触发
 # - 按 go.mod 声明的兼容底线工具链（Go 1.21.x）编译，保证最低版本可用
-# - 三平台冒烟（ubuntu / macos / windows），gofmt / vet / build
+# - 三平台冒烟（ubuntu / macos / windows），gofmt / vet / test / build
+# - 单测：Linux 以 -race 跑（并发问题回归防线）；macos/windows 跑普通 go test
 name: CI
 
 on:
@@ -47,6 +48,17 @@ jobs:
 
       - name: Vet
         run: go vet ./...
+
+      # 数据竞争防线：service 层并发保护（配置热重载 / 锁内快照）依赖 -race 防回归。
+      # race 检测器依赖 cgo，Linux runner 自带 gcc 且速度最快，故仅在 Linux 启用；
+      # 其余平台跑普通 go test，保证跨平台编译与断言。
+      - name: Test (race)
+        if: runner.os == 'Linux'
+        run: go test -race -count=1 ./...
+
+      - name: Test
+        if: runner.os != 'Linux'
+        run: go test -count=1 ./...
 
       - name: Build (linux/macos)
         if: runner.os != 'Windows'
