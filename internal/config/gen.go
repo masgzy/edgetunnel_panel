@@ -316,11 +316,11 @@ func applyGenSection(cfg *RuntimeConfig, data map[string]interface{}) {
 		if b, err := asBool(v, "gen.auto_from_panel"); err == nil {
 			cfg.GenAutoFromPanel = b
 		}
-
-		if v, ok := m["aggregate_worker_sub"]; ok {
-			if b, err := asBool(v, "gen.aggregate_worker_sub"); err == nil {
-				cfg.GenAggregateWorkerSub = b
-			}
+	}
+	// 独立解析：不依赖 auto_from_panel 是否显式出现
+	if v, ok := m["aggregate_worker_sub"]; ok {
+		if b, err := asBool(v, "gen.aggregate_worker_sub"); err == nil {
+			cfg.GenAggregateWorkerSub = b
 		}
 	}
 	mm, ok := m["manual"].(map[string]interface{})
