@@ -1,7 +1,8 @@
 # CI：push / PR 到任意分支时触发
 # - 按 go.mod 声明的兼容底线工具链（Go 1.21.x）编译，保证最低版本可用
 # - 三平台冒烟（ubuntu / macos / windows），gofmt / vet / test / build
-# - 单测：Linux 以 -race 跑（并发问题回归防线）；macos/windows 跑普通 go test
+# - 单测：Linux 以 -race 跑（并发问题回归防线）；Windows 跑普通 go test；
+#   macOS 暂跳过（1.21 基线工具链与新版 runner dyld 的 LC_UUID 兼容问题，见 Test 步骤注释）
 name: CI
 
 on:
@@ -57,7 +58,11 @@ jobs:
         run: go test -race -count=1 ./...
 
       - name: Test
-        if: runner.os != 'Linux'
+        # macOS 暂不跑 go test：1.21 基线工具链的链接器在新版 macOS runner 的
+        # dyld 上可能产出缺 LC_UUID 的测试二进制而被拒载（上游 Go 已在新版修复，
+        # 1.21 已 EOL 不会回移）。基线编译兼容仍由 vet + build 验证；
+        # 测试防线由 Linux（-race）与 Windows 承担。
+        if: runner.os == 'Windows'
         run: go test -count=1 ./...
 
       - name: Build (linux/macos)
