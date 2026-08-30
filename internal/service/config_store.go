@@ -50,10 +50,18 @@ func NewConfigStore(filePath, nrtFile string, variables map[string]config.Variab
 }
 
 // FilePath 返回当前管理的文件路径。
-func (c *ConfigStore) FilePath() string { return c.filePath }
+func (c *ConfigStore) FilePath() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.filePath
+}
 
 // Variables 返回变量表。
-func (c *ConfigStore) Variables() map[string]config.VariableSource { return c.variables }
+func (c *ConfigStore) Variables() map[string]config.VariableSource {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.variables
+}
 
 // Reload 热更新配置（配置重载时调用）：替换文件路径与变量表，
 // 与构造函数同样保证新路径的父目录存在。
@@ -74,7 +82,9 @@ func (c *ConfigStore) Reload(filePath, nrtFile string, variables map[string]conf
 // FindDuplicate 查找与给定 ip 或 name 匹配的现有节点，返回可见行号（1-based）。
 // ip 或 name 任一匹配即视为重复。未找到返回 0。
 func (c *ConfigStore) FindDuplicate(ip, name string) (int, error) {
-	entries, err := c.Parse()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entries, err := c.parseUnlocked()
 	if err != nil {
 		return 0, err
 	}
@@ -95,7 +105,7 @@ func (c *ConfigStore) BatchDelete(lines []int) (success, failed int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// 解析一次获取 visible line -> 源文件 line 映射
-	entries, err := c.Parse()
+	entries, err := c.parseUnlocked()
 	if err != nil {
 		return 0, len(lines)
 	}
@@ -162,7 +172,7 @@ func (c *ConfigStore) writeNormalized(lines []string) error {
 func (c *ConfigStore) MoveTo(visibleLine, targetLine int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	entries, err := c.Parse()
+	entries, err := c.parseUnlocked()
 	if err != nil {
 		return err
 	}
@@ -226,7 +236,15 @@ var (
 )
 
 // Parse 解析文件返回配置列表（保留行号便于后续原位修改）。
+// 公开入口自带并发保护；已持有 c.mu 的内部方法请改用 parseUnlocked。
 func (c *ConfigStore) Parse() ([]ConfigEntry, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.parseUnlocked()
+}
+
+// parseUnlocked 为 Parse 的无锁内部实现（调用方必须已持有 c.mu）。
+func (c *ConfigStore) parseUnlocked() ([]ConfigEntry, error) {
 	lines, err := c.readLines()
 	if err != nil {
 		return nil, err
@@ -272,7 +290,7 @@ func (c *ConfigStore) Add(ip, name string, yxIP string) error {
 func (c *ConfigStore) UpdateVisible(visibleLine int, ip, name, yxIP *string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	entries, err := c.Parse()
+	entries, err := c.parseUnlocked()
 	if err != nil {
 		return err
 	}
@@ -313,7 +331,7 @@ func pickOrDefault(update *string, fallback string) string {
 func (c *ConfigStore) DeleteVisible(visibleLine int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	entries, err := c.Parse()
+	entries, err := c.parseUnlocked()
 	if err != nil {
 		return err
 	}
@@ -343,7 +361,7 @@ func (c *ConfigStore) DeleteVisible(visibleLine int) error {
 func (c *ConfigStore) SwapVisible(firstLine, secondLine int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	entries, err := c.Parse()
+	entries, err := c.parseUnlocked()
 	if err != nil {
 		return err
 	}
@@ -458,23 +476,19 @@ func (c *ConfigStore) resolveVariable(value string) string {
 }
 
 // extractVariableKey 若 token 是已注册变量则返回变量名，否则空串。
+// 内置变量 NRT 无需在 variables 中配置即可使用（裸值 / {{NRT}} / ${NRT} 均识别）。
 func (c *ConfigStore) extractVariableKey(token string) string {
-	if _, ok := c.variables[token]; ok {
-		return token
-	}
+	key := token
 	if strings.HasPrefix(token, "{{") && strings.HasSuffix(token, "}}") {
-		key := strings.TrimSpace(token[2 : len(token)-2])
-		if _, ok := c.variables[key]; ok {
-			return key
-		}
-		return ""
+		key = strings.TrimSpace(token[2 : len(token)-2])
+	} else if strings.HasPrefix(token, "${") && strings.HasSuffix(token, "}") {
+		key = strings.TrimSpace(token[2 : len(token)-1])
 	}
-	if strings.HasPrefix(token, "${") && strings.HasSuffix(token, "}") {
-		key := strings.TrimSpace(token[2 : len(token)-1])
-		if _, ok := c.variables[key]; ok {
-			return key
-		}
-		return ""
+	if key == "NRT" {
+		return key
+	}
+	if _, ok := c.variables[key]; ok {
+		return key
 	}
 	return ""
 }
@@ -506,16 +520,22 @@ func (c *ConfigStore) loadVariableValue(key string) string {
 	return key
 }
 
+// sanitizeField 去除字段内的换行/回车（防止破坏 vless.txt 的行结构）。
+func sanitizeField(s string) string {
+	return strings.TrimSpace(strings.NewReplacer("\r", " ", "\n", " ").Replace(s))
+}
+
 // formatLine 按字段拼接节点行（有优选 IP 用 @ 语法，DIRECT/空 IP 规范化）。
 func (c *ConfigStore) formatLine(ip, name, yxIP string) string {
 	normalizedIP := ""
 	if ip != "" && ip != "DIRECT" {
-		normalizedIP = strings.TrimSpace(ip)
+		normalizedIP = sanitizeField(ip)
 	}
 	normalizedYx := ""
 	if yxIP != "" {
-		normalizedYx = strings.TrimSpace(yxIP)
+		normalizedYx = sanitizeField(yxIP)
 	}
+	name = sanitizeField(name)
 	if normalizedYx != "" {
 		return normalizedIP + "@" + normalizedYx + "#" + name
 	}

@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"edt/internal/config"
@@ -41,11 +42,17 @@ type SubConverterConfig struct {
 }
 
 // SubscriptionService 订阅服务。
+//
+// 并发模型：cfgMu 保护除三个 store 引用外的全部可热替换字段
+// （Reload / Set* 写端持写锁，Build*/Status 等读端入口持读锁；
+// 私有辅助方法均在读锁内运行，不得再次加锁）。
 type SubscriptionService struct {
-	configStore    *ConfigStore
-	resultStore    *ResultStore
-	preIPStore     *PreIPStore
-	uuidService    *UUIDService
+	configStore *ConfigStore
+	resultStore *ResultStore
+	preIPStore  *PreIPStore
+	uuidService *UUIDService
+
+	cfgMu          sync.RWMutex
 	nrtFile        string
 	port           int
 	profiles       map[string]config.SubscriptionProfile
@@ -81,28 +88,27 @@ func NewSubscriptionService(
 	encodeB64 bool,
 	dataSources map[string]config.DataSourceConfig,
 ) *SubscriptionService {
-	return &SubscriptionService{
-		configStore:    cs,
-		resultStore:    rs,
-		preIPStore:     ps,
-		uuidService:    us,
-		nrtFile:        nrtFile,
-		port:           port,
-		profiles:       profiles,
-		defaultProfile: defaultProfile,
-		defaultByID:    defaultByID,
-		encodeB64:      encodeB64,
-		dataSources:    dataSources,
+	s := &SubscriptionService{
+		configStore: cs,
+		resultStore: rs,
+		preIPStore:  ps,
+		uuidService: us,
 	}
+	s.Reload(nrtFile, port, profiles, defaultProfile, defaultByID, encodeB64, dataSources)
+	return s
 }
 
 // SetSubConverter 注入 subconverter 桥接配置。
 func (s *SubscriptionService) SetSubConverter(cfg SubConverterConfig) {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
 	s.subConverter = cfg
 }
 
 // SetGenConfig 注入生成配置（gen 节解析结果）：auto_from_panel / aggregate_worker_sub 开关 + 手动默认值。
 func (s *SubscriptionService) SetGenConfig(autoFromPanel, aggregateWorkerSub bool, manual config.GenSettings) {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
 	s.genAutoFromPanel = autoFromPanel
 	s.genAggregate = aggregateWorkerSub
 	s.genManual = manual.Normalized()
@@ -121,6 +127,8 @@ func (s *SubscriptionService) Reload(
 	encodeB64 bool,
 	dataSources map[string]config.DataSourceConfig,
 ) {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
 	s.nrtFile = nrtFile
 	s.port = port
 	s.profiles = profiles
@@ -146,11 +154,15 @@ func (s *SubscriptionService) resolveGenSettings() config.GenSettings {
 
 // EffectiveGenSettings 返回当前实际生效的生成配置（面板自动 / 手动 / 缺省）。
 func (s *SubscriptionService) EffectiveGenSettings() config.GenSettings {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	return s.resolveGenSettings()
 }
 
 // PanelGenAvailable 报告面板生成配置快照是否可用（已拉取且含协议/传输字段）。
 func (s *SubscriptionService) PanelGenAvailable() bool {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	if s.uuidService == nil {
 		return false
 	}
@@ -160,6 +172,8 @@ func (s *SubscriptionService) PanelGenAvailable() bool {
 
 // GetDomain 返回订阅域名。
 func (s *SubscriptionService) GetDomain(subID, subType string) (string, error) {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	p, err := s.resolveProfile(subID, subType)
 	if err != nil {
 		return "", err
@@ -171,6 +185,8 @@ func (s *SubscriptionService) GetDomain(subID, subType string) (string, error) {
 // 优先使用远程面板（EDT-Pages 型）上报的 CF 真实用量；不可用时退化为
 // 原有时间伪造算法（无面板的纯本地部署保持旧行为）。
 func (s *SubscriptionService) GetUserinfo() string {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	if s.uuidService != nil {
 		if cf, ok := s.uuidService.UsageSnapshot(); ok {
 			return module.GetUserinfoWithUsage(s.userinfoExpire(), module.Usage{
@@ -186,6 +202,8 @@ func (s *SubscriptionService) GetUserinfo() string {
 
 // BuildSubscription 构建 vless:// 订阅。
 func (s *SubscriptionService) BuildSubscription(subID, subType string) (string, error) {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	profile, err := s.resolveProfile(subID, subType)
 	if err != nil {
 		return "", err
@@ -242,6 +260,8 @@ func (s *SubscriptionService) BuildSubscription(subID, subType string) (string, 
 // configURL 可选：指定 ACL4SSR 规则集 URL，生成器据此切换 proxy-groups/rules 模板；
 // 为空时用内嵌精简规则。
 func (s *SubscriptionService) BuildMihomoSubscription(subID, subType, configURL string) (string, error) {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	profile, err := s.resolveProfile(subID, subType)
 	if err != nil {
 		return "", err
@@ -284,7 +304,9 @@ func (s *SubscriptionService) BuildMihomoSubscription(subID, subType, configURL 
 // ConvertViaSubConverter 调用 subconverter 把 vless 订阅转成其他格式（singbox/surge/quanx 等）。
 // sourceURL 是 edt_panel 自己生成的 vless 订阅地址（subconverter 作为远程抓取源）。
 func (s *SubscriptionService) ConvertViaSubConverter(target, sourceURL, externalConfig string) (string, error) {
+	s.cfgMu.RLock()
 	baseURL, err := s.subconverterBaseURL()
+	s.cfgMu.RUnlock()
 	if err != nil {
 		return "", err
 	}
@@ -322,6 +344,8 @@ func (s *SubscriptionService) ConvertViaSubConverter(target, sourceURL, external
 
 // SubConverterStatus 返回 subconverter 桥接状态（供前端显示）。
 func (s *SubscriptionService) SubConverterStatus() map[string]interface{} {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	return map[string]interface{}{
 		"mode":       s.subConverter.Mode,
 		"remote":     s.subConverter.Remote,
@@ -331,6 +355,8 @@ func (s *SubscriptionService) SubConverterStatus() map[string]interface{} {
 
 // RuntimeStatus 返回运行时状态摘要（供仪表盘状态卡片显示）。
 func (s *SubscriptionService) RuntimeStatus() map[string]interface{} {
+	s.cfgMu.RLock()
+	defer s.cfgMu.RUnlock()
 	return map[string]interface{}{
 		"subscription_port": s.port,
 		"default_profile":   s.defaultProfile,
@@ -518,22 +544,26 @@ func (s *SubscriptionService) userinfoExpire() string {
 
 // SetUserinfoExpire 注入 userinfo 过期时间字符串。
 func (s *SubscriptionService) SetUserinfoExpire(v string) {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
 	s.userinfoExpireStr = v
 }
 
 // subconverterBaseURL 返回 subconverter 桥接的基地址（remote 地址或本地端口）。
+// 只读：调用方需持有 cfgMu（至少读锁）；本地端口缺省在副本上补齐，不回写共享状态。
 func (s *SubscriptionService) subconverterBaseURL() (string, error) {
-	switch s.subConverter.Mode {
+	sc := s.subConverter
+	switch sc.Mode {
 	case "remote":
-		if s.subConverter.Remote == "" {
+		if sc.Remote == "" {
 			return "", fmt.Errorf("subconverter 远程地址未配置")
 		}
-		return strings.TrimRight(s.subConverter.Remote, "/"), nil
+		return strings.TrimRight(sc.Remote, "/"), nil
 	case "local":
-		if s.subConverter.LocalPort == 0 {
-			s.subConverter.LocalPort = 25500
+		if sc.LocalPort == 0 {
+			sc.LocalPort = 25500
 		}
-		return fmt.Sprintf("http://127.0.0.1:%d", s.subConverter.LocalPort), nil
+		return fmt.Sprintf("http://127.0.0.1:%d", sc.LocalPort), nil
 	default:
 		return "", fmt.Errorf("subconverter 未启用（mode=off 或未配置）")
 	}

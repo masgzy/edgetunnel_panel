@@ -162,6 +162,8 @@ func (u *UUIDService) Reload(adminURL, runTimeFile, domain string, timeoutSec in
 
 // SetAuthConfig 注入 auth 模块依赖的配置。
 func (u *UUIDService) SetAuthConfig(cfg module.AuthConfig) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	u.authConfig = cfg
 }
 
@@ -185,26 +187,31 @@ func (u *UUIDService) Get() (string, error) {
 		u.mu.Unlock()
 		return uuid, nil
 	}
+	// 锁内快照远端请求参数，避免锁外读字段与 Reload/SetAuthConfig 竞态
+	authCfg := u.authConfig
+	adminURL := u.adminURL
+	domain := u.domain
+	timeout := u.timeout
 	u.mu.Unlock()
 
 	// 需要远程拉取（释放锁后进行网络请求）
 	count := u.readRunCount()
 	u.writeRunCount(maxi(count, 0) + 1)
 
-	authToken, err := module.GetAuth(u.authConfig)
+	authToken, err := module.GetAuth(authCfg)
 	if err != nil {
 		return "", fmt.Errorf("获取 auth 失败: %w", err)
 	}
 
-	req, err := http.NewRequest("GET", u.adminURL, nil)
+	req, err := http.NewRequest("GET", adminURL, nil)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36")
-	req.Header.Set("Referer", fmt.Sprintf("https://%s/admin", u.domain))
+	req.Header.Set("Referer", fmt.Sprintf("https://%s/admin", domain))
 	req.AddCookie(&http.Cookie{Name: "auth", Value: authToken})
 
-	client := &http.Client{Timeout: u.timeout}
+	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("远程请求失败: %w", err)
@@ -358,6 +365,7 @@ func (u *UUIDService) FetchWorkerSub() ([]string, error) {
 	}
 	uuid := u.cachedUUID
 	adminURL := u.adminURL
+	timeout := u.timeout
 	u.mu.Unlock()
 	if host == "" || uuid == "" {
 		return nil, fmt.Errorf("面板 host/uuid 不可用")
@@ -371,7 +379,7 @@ func (u *UUIDService) FetchWorkerSub() ([]string, error) {
 	}
 	// UA 不得含 subconverter/mozilla 关键词，生态按此返回 base64 节点列表。
 	req.Header.Set("User-Agent", "edt_panel")
-	client := &http.Client{Timeout: u.timeout}
+	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("面板订阅拉取失败: %w", err)

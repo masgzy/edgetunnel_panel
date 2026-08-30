@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"os"
 	"strconv"
+	"sync"
 
 	"edt/internal/module"
 )
@@ -21,6 +22,7 @@ type ResultRow struct {
 
 // ResultStore 管理 data/result.csv。
 type ResultStore struct {
+	mu       sync.Mutex // 保护 filePath 与文件读写
 	filePath string
 }
 
@@ -31,11 +33,15 @@ func NewResultStore(filePath string) *ResultStore {
 
 // Reload 热更新 result.csv 路径（配置重载时调用；低频，读写风格与构造约定一致）。
 func (r *ResultStore) Reload(filePath string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.filePath = filePath
 }
 
 // readRows 读取并解析结果文件全部行。
 func (r *ResultStore) readRows() ([]ResultRow, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	f, err := os.Open(r.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {

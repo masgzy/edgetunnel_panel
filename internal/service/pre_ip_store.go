@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // PreIPStore 管理 data/pre_ip.txt（两行：前缀 + IP）。
 type PreIPStore struct {
+	mu       sync.Mutex // 保护 filePath 与文件读写
 	filePath string
 }
 
@@ -18,6 +20,8 @@ func NewPreIPStore(filePath string) *PreIPStore {
 
 // Get 返回 (pre, ip)。
 func (p *PreIPStore) Get() (string, string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	data, err := os.ReadFile(p.filePath)
 	if err != nil {
 		return "", ""
@@ -36,6 +40,8 @@ func (p *PreIPStore) Get() (string, string) {
 
 // Set 写入 pre 和 ip。
 func (p *PreIPStore) Set(pre, ip string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	// 确保父目录存在
 	if dir := filepath.Dir(p.filePath); dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
@@ -45,5 +51,7 @@ func (p *PreIPStore) Set(pre, ip string) error {
 
 // Reload 热更新 pre_ip.txt 路径（配置重载时调用；低频，读写风格与构造约定一致）。
 func (p *PreIPStore) Reload(filePath string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.filePath = filePath
 }

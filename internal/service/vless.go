@@ -85,12 +85,8 @@ func ParseVlessLink(line string) (VlessNode, error) {
 		node.Host = h
 		node.Port = p
 	}
-	// path 可能 URL 编码（%2Fproxyip...），解码用于写入 vless.txt
-	if node.Path != "" {
-		if dec, err := url.QueryUnescape(node.Path); err == nil {
-			node.Path = dec
-		}
-	}
+	// path 已由 ParseQuery 解码一次，这里不再二次解码：
+	// 二次解码会把解码结果中的 % 序列与 + 再解释一遍（%2F→/、+→空格），得到错误路径
 	return node, nil
 }
 
