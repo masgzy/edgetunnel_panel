@@ -191,9 +191,14 @@ func (a *webAuth) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
+	// 表单校验失败重定向回带 err=1：此前从未读取，错误提示从未展示
+	errMsg := ""
+	if r.FormValue("err") == "1" {
+		errMsg = "口令错误，请重试"
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprint(w, loginPageHTML(next, ""))
+	fmt.Fprint(w, loginPageHTML(next, errMsg))
 }
 
 // handleLogout 清除会话 Cookie 并回到登录页。
@@ -283,99 +288,115 @@ func sanitizeNextPath(n string) string {
 	return n
 }
 
-// ----- 登录页（自包含 HTML/CSS，无外部依赖）-----
+// ----- 登录页（复用面板内置 M3E 设计系统：本地字体/主题脚本，零外链）-----
 
-// loginPageHTML 渲染自包含的 MD3 登录页（明暗自适应，无外部依赖）。
+// loginPageHTML 渲染 M3E（Material Design 3 Expressive）登录页。
+// 直接引用面板静态资源 fonts.css / m3e.css / theme.bundle.js（/assets/ 为公开路由），
+// 与主界面共用同一套色板、字体、形状与动态主题（含自定义 seed 色板），
+// 明暗跟随 localStorage（edt-theme）与系统偏好，无外部依赖。
 func loginPageHTML(next string, errMsg string) string {
 	errBox := ""
 	if errMsg != "" {
-		errBox = `<div class="err" role="alert">` + htmlEscape(errMsg) + `</div>`
+		errBox = `<div class="login-error" role="alert">
+    <span class="material-symbols-rounded">key</span><span>` + htmlEscape(errMsg) + `</span>
+  </div>`
 	}
 	return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FEF7FF">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141218">
 <title>edt 面板 · 登录</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!-- 早期主题应用：与主界面同一套 localStorage 键，避免刷新闪色 -->
+<script>
+(function(){
+  try {
+    var m = localStorage.getItem('edt-theme') || 'system';
+    var d = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+  } catch(e) {}
+})();
+</script>
+<link rel="stylesheet" href="/assets/css/fonts.css">
+<link rel="stylesheet" href="/assets/css/m3e.css">
+<!-- 动态色彩：须在 m3e.css 之后加载，确保自定义 seed 色板生效 -->
+<script src="/assets/vendor/theme.bundle.js"></script>
 <style>
-:root{
-  --bg:#141218; --card:#211f26; --primary:#d0bcff; --on-primary:#381e72;
-  --surface-hi:#36343b; --outline:#938f99; --on-surface:#e6e0e9; --on-var:#cac4d0;
-  --error:#ffb4ab;
-}
-@media (prefers-color-scheme: light){
-  :root{
-    --bg:#fef7ff; --card:#fff; --primary:#6750a4; --on-primary:#fff;
-    --surface-hi:#e8def8; --outline:#79747e; --on-surface:#1d1b20; --on-var:#49454f;
-    --error:#b3261e;
-  }
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+/* 登录页专属布局（组件样式全部来自 m3e.css） */
 body{
-  font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-  background:var(--bg); color:var(--on-surface);
-  display:flex;align-items:center;justify-content:center;padding:16px;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
 }
-.card{
-  width:100%;max-width:360px;background:var(--card);
-  border-radius:28px;padding:40px 32px 32px;
-  box-shadow:0 4px 12px rgba(0,0,0,.35);
+.login-card{
+  width:100%;max-width:400px;padding:40px 32px 28px;
+  border-radius:var(--shape-xl);
+  animation:card-in var(--motion-duration-emphasized) var(--ease-spatial) both;
 }
-.logo{
-  display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:28px;
+@keyframes card-in{
+  from{opacity:0;transform:translateY(16px) scale(.97)}
+  to{opacity:1;transform:none}
 }
-.logo .mark{
-  width:72px;height:72px;border-radius:22px;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,var(--primary),var(--surface-hi));
-  color:var(--on-primary);font-size:34px;font-weight:700;
+.login-logo{
+  display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:28px;
 }
-.logo h1{font-size:22px;font-weight:500}
-.logo p{font-size:13px;color:var(--on-var)}
-label{display:block;font-size:12px;color:var(--on-var);margin:18px 2px 6px}
-input[type=password]{
-  width:100%;padding:14px 16px;font-size:15px;color:var(--on-surface);
-  background:color-mix(in srgb,var(--surface-hi) 55%,transparent);
-  border:1px solid var(--outline);border-radius:14px;outline:none;
-  transition:border-color .2s,box-shadow .2s;
+.login-logo .mark{
+  width:76px;height:76px;border-radius:var(--shape-lg);
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--md-primary),var(--md-tertiary));
+  color:var(--md-on-primary);font-size:38px;font-weight:700;
+  box-shadow:var(--elev-2);
+  animation:mark-bounce 600ms var(--ease-bouncy) var(--motion-duration-normal) both;
 }
-input[type=password]:focus{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
-.err{
-  margin-top:16px;padding:10px 14px;border-radius:12px;font-size:13px;
-  background:color-mix(in srgb,var(--error) 18%,transparent);
-  color:var(--error);
+@keyframes mark-bounce{
+  from{transform:scale(.6);opacity:0}
+  to{transform:scale(1);opacity:1}
 }
-button{
-  width:100%;margin-top:24px;padding:14px;border:none;border-radius:9999px;
-  font-size:15px;font-weight:600;letter-spacing:.3px;cursor:pointer;
-  background:var(--primary);color:var(--on-primary);
-  transition:filter .2s,transform .1s;
+.login-logo h1{font-size:var(--font-headline-small);font-weight:500;color:var(--md-on-surface)}
+.login-logo p{font-size:var(--font-body-small);color:var(--md-on-surface-variant)}
+.login-error{
+  display:flex;align-items:center;gap:8px;
+  margin:4px 0 16px;padding:10px 14px;
+  border-radius:var(--shape-sm);
+  background:var(--md-error-container);color:var(--md-on-error-container);
+  font-size:var(--font-body-small);
 }
-button:hover{filter:brightness(1.08)}
-button:active{transform:scale(.98)}
-.hint{margin-top:20px;font-size:12px;line-height:1.7;color:var(--on-var);text-align:center}
-.hint code{background:color-mix(in srgb,var(--outline) 25%,transparent);padding:1px 5px;border-radius:5px}
+.login-error .material-symbols-rounded{font-size:18px}
+.login-submit{width:100%;height:44px;margin-top:8px;font-size:var(--font-label-large)}
+.login-hint{
+  margin-top:20px;font-size:var(--font-body-small);line-height:1.8;
+  color:var(--md-on-surface-variant);text-align:center;
+}
+.login-hint code{
+  background:var(--md-surface-container-highest);
+  padding:1px 6px;border-radius:var(--shape-xs);
+  font-size:var(--font-label-medium);
+}
 </style>
 </head>
 <body>
-<main class="card">
-  <div class="logo">
-    <div class="mark">e</div>
-    <h1>edt 面板</h1>
-    <p>VLess 订阅管理服务</p>
-  </div>
-  ` + errBox + `
-  <form method="post" action="/login">
-    <input type="hidden" name="next" value="` + htmlEscape(next) + `">
-    <label for="pw">管理口令</label>
-    <input id="pw" name="password" type="password" required
-           autocomplete="current-password" autofocus placeholder="请输入口令">
-    <button type="submit">登 录</button>
-  </form>
-  <p class="hint">口令在 <code>config.yml</code> 的 <code>auth.login_password</code><br>留空表示关闭控制台鉴权。</p>
-</main>
+  <div class="bg-decor"><div class="orb-extra"></div></div>
+  <main class="card elevated login-card">
+    <div class="login-logo">
+      <div class="mark">e</div>
+      <h1>edt 面板</h1>
+      <p>VLess 订阅管理服务</p>
+    </div>
+    ` + errBox + `
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="` + htmlEscape(next) + `">
+      <div class="text-field filled">
+        <label for="pw">控制台口令</label>
+        <input id="pw" name="password" type="password" required
+               autocomplete="current-password" autofocus placeholder="请输入口令">
+      </div>
+      <button type="submit" class="btn btn-filled login-submit">登 录</button>
+    </form>
+    <p class="hint login-hint">控制台口令在 <code>config.yml</code> 的 <code>auth.web_password</code><br>
+    未单独设置时沿用 <code>auth.login_password</code>；置空则关闭鉴权。</p>
+  </main>
 </body>
 </html>`
 }

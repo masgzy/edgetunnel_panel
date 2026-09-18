@@ -686,9 +686,10 @@ func (d *Deps) configFileHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		// 登录口令热更新（轮换会话密钥：旧会话全部失效，需重新登录）
-		if newCfg.LoginPassword != d.Cfg.LoginPassword && d.auth != nil {
-			d.auth.SetPassword(newCfg.LoginPassword)
-			reloaded = append(reloaded, "登录口令（旧会话已全部失效）")
+		// 注意：Web 控制台使用 auth.web_password（与远程控制端的 login_password 独立）
+		if newCfg.WebPassword != d.Cfg.WebPassword && d.auth != nil {
+			d.auth.SetPassword(newCfg.WebPassword)
+			reloaded = append(reloaded, "控制台登录口令（旧会话已全部失效）")
 		}
 		// 无法热生效的监听参数：对比新旧值后提示重启
 		needRestart := []string{}
