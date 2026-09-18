@@ -65,6 +65,12 @@ edt_panel 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudfla
 - 生成配置：协议（VLESS / Trojan / Shadowsocks）与连接参数（传输、证书校验、
   0-RTT、TLS 分片、随机伪装路径、ECH、浏览器指纹）可自动读取面板 config.json
   或手动设置
+- 名称自动补国旗：按名称里的机场三字码（HKG/ICN/LAX…）或二字码（HK/US…）
+  识别区域并补旗，TW 区域码按约定使用中国🇨🇳旗帜；开关独立可配
+- ProxyIP 分区域兜底：节点未携带 ProxyIP 时按区域码（名称或优选结果 cfcolo）
+  匹配不同 ProxyIP，支持全局默认与 cdn-cgi/trace 自动探测
+- 裸行角色可配：`vless.txt` 无 `@` 的行可整体指定为 ProxyIP 或优选 IP，
+  免去只有优选 IP 时逐行输 `@`
 - 二维码展示订阅链接，手机扫码即用
 - mihomo（Clash Meta）配置生成：内置模板 + ACL4SSR ini 解析（ruleset / custom_proxy_group）
 - 订阅访问历史记录
@@ -125,7 +131,8 @@ chmod +x edt_panel
 
 ```yaml
 auth:
-  login_password: CHANGE_ME        # 控制台登录口令，务必修改！留空则完全关闭鉴权
+  login_password: CHANGE_ME        # 远程控制端（EDT Worker 面板）登录口令
+  # web_password: CHANGE_ME_WEB    # 本面板控制台口令；缺省回退沿用 login_password
 
 remote:
   control_domain: example.com      # 控制端域名（base）：admin_url / login_url 默认由它拼接
@@ -133,6 +140,10 @@ remote:
 app:
   port: 5001                       # 控制台监听端口
 ```
+
+> 两套口令相互独立：`login_password` 用于面板后台代登录远程 Worker 面板，
+> `web_password` 用于本控制台登录（缺省时回退沿用 `login_password` 以兼容旧版，
+> 显式置空则关闭控制台鉴权；也可用环境变量 `EDT_WEB_PASSWORD`，优先级最高）。
 
 > `remote.admin_url` 与 `auth.login_url` 可省略：默认拼接为
 > `https://<control_domain>/admin/config.json` 与 `https://<control_domain>/login`；
@@ -154,8 +165,8 @@ app:
 | `--sc-port <n>` | 本地 subconverter 监听端口（默认 25500） |
 | `--no-color` | 关闭终端彩色输出 |
 
-浏览器打开 `http://<host>:5001`，输入 `login_password` 登录控制台。`Ctrl+C` 优雅退出，
-正在运行的 subconverter 子进程会被一并回收。
+浏览器打开 `http://<host>:5001`，输入控制台口令（`auth.web_password`，未单独设置时为
+`login_password`）登录控制台。`Ctrl+C` 优雅退出，正在运行的 subconverter 子进程会被一并回收。
 
 ### 4. 启用 HTTPS（生产环境建议）
 
@@ -258,17 +269,64 @@ gen:
 - TLS 分片与 ECH 参数目前仅出现在分享链接中（mihomo 无对应标准字段）；
   xhttp/gRPC 在 mihomo 侧需要较新内核支持。
 
+## 节点解析与订阅增强（nodes / flag / proxyip）
+
+三个可选配置节控制节点行解析与订阅生成的细节行为，全部缺省安全降级：
+
+### nodes —— 无 @ 行的裸 IP 角色
+
+`vless.txt` 行格式为 `proxyip@优选ip#名称`；无 `@` 的裸行（如 `1.2.3.4#名称`）
+默认把裸 IP 视为 **ProxyIP**（旧行为）。开启后裸 IP 统一视为**优选 IP**，
+适合「只有优选 IP、不想逐行输 @」的场景；带 `@` 的完整格式不受影响：
+
+```yaml
+nodes:
+  bare_ip_role: proxyip   # proxyip（默认）| yxip
+```
+
+### flag —— 名称自动补国旗
+
+订阅节点名称不含旗帜 emoji 时按名称里的区域码自动补旗（已含旗帜不重复添加）：
+
+```yaml
+flag:
+  iata: true    # 三字码：机场码 / cfcolo / ISO alpha-3（HKG→🇭🇰、ICN→🇰🇷、LAX/SJC→🇺🇸）
+  iso2: false   # 二字码：HK、US、SG…（存在误匹配可能，需显式开启）
+```
+
+TW 区域码（TW / TPE / TWN 等）一律使用中国🇨🇳旗帜，不出现 TW 旗帜 emoji。
+
+### proxyip —— 分区域 ProxyIP 兑底
+
+节点未显式携带 ProxyIP（空 / DIRECT）时自动兑底，优先级从高到低：
+
+1. `by_region`：按节点区域码匹配（名称里的三字/二字码，或优选结果的 cfcolo 列）；
+2. `detect: true` 时经 `cdn-cgi/trace` 探测 cfcolo 后再匹配
+   （单次订阅构建最多探测 16 个节点，结果进程内缓存）；
+3. `global`：全局默认值。
+
+```yaml
+proxyip:
+  global: ""
+  detect: false
+  by_region:            # 按三字码指定不同的 ProxyIP
+    HKG: 1.2.3.4
+    NRT: 5.6.7.8
+```
 
 ## 鉴权与安全
 
-- **口令门**：`auth.login_password` 非空时，所有页面与 API 需登录；留空则完全关闭鉴权
-  （仅建议纯内网使用）。环境变量 `EDT_LOGIN_PASSWORD` 优先于配置文件。
+- **口令门**：`auth.web_password` 非空时，所有页面与 API 需登录；显式置空则完全关闭鉴权
+  （仅建议纯内网使用）。未单独设置时回退沿用 `auth.login_password`（兼容旧版单口令）。
+  环境变量 `EDT_WEB_PASSWORD` 优先于配置文件；远程 Worker 面板口令由 `auth.login_password`
+  （环境变量 `EDT_LOGIN_PASSWORD`）独立控制。
 - **会话**：HMAC-SHA256 签名 Cookie，7 天有效，HttpOnly + SameSite=Lax；
   经 HTTPS 反代访问时自动附加 `Secure`。
 - **防爆破**：登录接口按 IP 限速，5 分钟内失败 8 次即临时封禁。
 - **数据安全**：备份恢复接口内置 zip 路径穿越（Zip Slip）防护；请求体大小限制；
   安全响应头；subconverter 安装源拒绝环回 / 私网 / 链路本地地址（防 SSRF）。
-- **忘记口令**：编辑 `config.yml` 中 `login_password` 后重启服务即可。
+- **忘记口令**：编辑 `config.yml` 中 `auth.web_password` 后重启服务即可（保存配置
+  的热重载会立即生效并使所有旧会话失效）。
 
 ## 从源码构建
 

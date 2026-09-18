@@ -65,7 +65,7 @@ type app struct {
 
 const (
 	// appVersion 面板版本号：CLI --version、启动横幅与 /api/status（设置页关于）共用。
-	appVersion = "1.0.0-alpha2"
+	appVersion = "1.0.0-alpha3"
 )
 
 func main() {
@@ -122,7 +122,7 @@ func main() {
 		UUIDService:     a.uuid,
 		SubscriptionSvc: a.subSvc,
 		Stats:           stats,
-		WebPassword:     cfg.LoginPassword,
+		WebPassword:     cfg.WebPassword,
 		SCRestart:       supRestartFunc(sup),
 		ReloadServices: func(newCfg *config.RuntimeConfig) ([]string, error) {
 			return reloadRuntime(cli, a, sup, newCfg)
@@ -150,6 +150,7 @@ func reloadRuntime(cli CLI, a *app, sup *scSupervisor, newCfg *config.RuntimeCon
 	}
 
 	a.cfgStore.Reload(newCfg.VlessFile, newCfg.NRTFile, newCfg.Variables)
+	a.cfgStore.SetBareIPRole(newCfg.BareIPRole)
 	a.preIP.Reload(newCfg.PreIPFile)
 	a.result.Reload(newCfg.ResultFile)
 	a.uuid.Reload(newCfg.AdminURL, newCfg.RunTimeFile, newCfg.ControlDomain, newCfg.RequestTimeout)
@@ -165,6 +166,9 @@ func reloadRuntime(cli CLI, a *app, sup *scSupervisor, newCfg *config.RuntimeCon
 		newCfg.Profiles, newCfg.DefaultProfile, newCfg.DefaultProfileByID,
 		newCfg.EncodeSubscriptionBase64, newCfg.DataSources,
 	)
+	a.subSvc.SetBareIPRole(newCfg.BareIPRole)
+	a.subSvc.SetFlagOptions(newCfg.FlagIATA, newCfg.FlagISO2)
+	a.subSvc.SetProxyIPSettings(newCfg.ProxyIPGlobal, newCfg.ProxyIPDetect, newCfg.ProxyIPByRegion)
 	a.subSvc.SetUserinfoExpire(newCfg.UserinfoExpire)
 	a.subSvc.SetGenConfig(newCfg.GenAutoFromPanel, newCfg.GenAggregateWorkerSub, newCfg.GenManual)
 
@@ -184,6 +188,9 @@ func reloadRuntime(cli CLI, a *app, sup *scSupervisor, newCfg *config.RuntimeCon
 		"远程面板对接（remote）",
 		"鉴权与订阅头（auth）",
 		"生成配置（gen）",
+		"节点解析（nodes）",
+		"国旗补全（flag）",
+		"ProxyIP 兑底（proxyip）",
 		"subconverter 桥接",
 	}, nil
 }
@@ -400,6 +407,7 @@ func loadRuntimeConfig(cli CLI) (*config.RuntimeConfig, error) {
 // newApp 按依赖顺序构造 ConfigStore / PreIPStore / ResultStore / UUIDService / SubscriptionService。
 func newApp(cfg *config.RuntimeConfig) *app {
 	cfgStore := service.NewConfigStore(cfg.VlessFile, cfg.NRTFile, cfg.Variables)
+	cfgStore.SetBareIPRole(cfg.BareIPRole)
 	preIPStore := service.NewPreIPStore(cfg.PreIPFile)
 	resultStore := service.NewResultStore(cfg.ResultFile)
 	uuidService := service.NewUUIDService(
@@ -420,6 +428,9 @@ func newApp(cfg *config.RuntimeConfig) *app {
 	)
 	subService.SetUserinfoExpire(cfg.UserinfoExpire)
 	subService.SetGenConfig(cfg.GenAutoFromPanel, cfg.GenAggregateWorkerSub, cfg.GenManual)
+	subService.SetBareIPRole(cfg.BareIPRole)
+	subService.SetFlagOptions(cfg.FlagIATA, cfg.FlagISO2)
+	subService.SetProxyIPSettings(cfg.ProxyIPGlobal, cfg.ProxyIPDetect, cfg.ProxyIPByRegion)
 	return &app{
 		cfg:      cfg,
 		cfgStore: cfgStore,
