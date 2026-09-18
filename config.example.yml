@@ -29,7 +29,15 @@ remote:
 auth:
   # login_url 可省略：默认 https://<control_domain>/login
   # login_url: https://example.com/login
-  login_password: CHANGE_ME  # 面板登录口令（Web UI / API）；也可用环境变量 EDT_LOGIN_PASSWORD
+  # login_password：远程控制端（EDT Worker 面板）的登录口令，
+  #                 用于面板后台代登录 Worker 换取 auth Cookie；
+  #                 也可用环境变量 EDT_LOGIN_PASSWORD。
+  login_password: CHANGE_ME
+  # web_password：本面板 Web 控制台的登录口令，与 Worker 口令相互独立；
+  #   - 缺省时回退沿用 login_password（兼容旧版单口令用法）；
+  #   - 显式置空（web_password: ""）表示关闭控制台鉴权；
+  #   - 也可用环境变量 EDT_WEB_PASSWORD（优先级最高）。
+  # web_password: CHANGE_ME_WEB
   # 客户端订阅页显示的「套餐到期」时间；可省略（默认 2030-01-01）。
   # userinfo_expire: "2030-01-01 00:00:00+08:00"
 
@@ -42,6 +50,39 @@ files:
 
 # 说明：mihomo(clash.meta) 订阅由面板内置生成（/mihomo 与 /sub?clash 均可直接使用），
 # 无需任何外部模板文件。如需切换规则模板，可给订阅地址追加 ?config=<ACL4SSR ini URL>。
+
+# ---- 节点解析（可选） ----
+# vless.txt 行格式：proxyip@优选ip#名称。
+# 无 @ 的裸行（如 1.2.3.4#名称）默认把裸 IP 视为 ProxyIP（旧行为）；
+# 开启 yxip 后，裸 IP 统一视为优选 IP（带 @ 的完整格式不受影响），
+# 适合「只有优选 IP、不逐行输 @」的场景。
+nodes:
+  bare_ip_role: proxyip       # proxyip（默认）| yxip
+
+# ---- 国旗补全（可选） ----
+# 订阅节点名称不含旗帜 emoji 时，按名称里的区域码自动补旗：
+#   iata：三字码识别（机场码 / cfcolo / ISO alpha-3），
+#         如 HKG->🇭🇰、ICN->🇰🇷、LAX/SJC->🇺🇸；默认开启；
+#   iso2：二字码识别（HK、US、SG 等），存在误匹配可能，默认关闭；
+# TW 区域码（TW/TPE/TWN 等）一律使用中国🇨🇳旗帜，不出现 TW 旗帜 emoji。
+# 名称中已含旗帜的节点不会重复补旗。
+flag:
+  iata: true                  # 三字码补旗（默认 true）
+  iso2: false                 # 二字码补旗（默认 false，需显式开启）
+
+# ---- ProxyIP 兑底（可选） ----
+# 节点未显式携带 ProxyIP（空 / DIRECT）时的自动兑底来源，优先级从高到低：
+#   1. by_region：按节点区域码匹配（名称里的三字/二字码，或优选结果里的 cfcolo 列）；
+#   2. detect：名称无码且 detect: true 时，经 cdn-cgi/trace 探测 cfcolo 后再匹配
+#      （每次订阅构建最多探测 16 个节点，结果进程内缓存）；
+#   3. global：全局默认值。
+# 兑底值支持 IP / 域名 / 变量引用（{{VAR}}）。不配置本节则完全保持旧行为。
+proxyip:
+  # global: ""
+  # detect: false             # 是否启用 cfcolo 探测（默认 false）
+  # by_region:                # 按三字码指定不同的 ProxyIP
+  #   HKG: 1.2.3.4
+  #   NRT: 5.6.7.8
 
 # ---- 变量 ----
 # 可在 vless.txt 等数据文件中引用，支持三种写法：NRT、{{NRT}}、${NRT}。

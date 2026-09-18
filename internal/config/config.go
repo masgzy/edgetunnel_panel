@@ -7,7 +7,9 @@
 //  3. requireTopSections—— 校验五个必需顶层节（app/remote/auth/files/subscriptions）；
 //  4. parseProfiles / parseDataSources / parseVariables —— 领域节解析；
 //  5. parseAppSection / parseRemoteSection / parseAuthSection —— 标量配置节；
-//  6. applySubConverterSettings —— 可选的 subconverter 桥接节（缺省安全降级）。
+//  6. applySubConverterSettings —— 可选的 subconverter 桥接节（缺省安全降级）；
+//  7. applyNodesSection / applyFlagSection / applyProxyIPSection —— 可选行为节
+//     （节点解析角色 / 国旗补全 / 全局与分区域 ProxyIP，缺省安全降级）。
 package config
 
 import (
@@ -59,8 +61,21 @@ type RuntimeConfig struct {
 	SubscriptionPort int
 
 	LoginURL       string
-	LoginPassword  string
+	LoginPassword  string // 远程控制端（EDT Worker 面板）登录口令
+	WebPassword    string // 本面板 Web 控制台登录口令（缺省回退 LoginPassword）
 	UserinfoExpire string
+
+	// 节点解析行为（nodes 节，可选）
+	BareIPRole string // vless.txt 无 @ 行的裸 IP 角色：proxyip（默认）| yxip
+
+	// 国旗补全（flag 节，可选）
+	FlagIATA bool // 名称中三字码（HKG/ICN/LAX…）补国旗；缺省 true
+	FlagISO2 bool // 名称中二字码（HK/US…）补国旗；缺省 false
+
+	// ProxyIP 解析（proxyip 节，可选）：节点未显式携带 proxyip 时的兜底来源
+	ProxyIPGlobal   string            // 全局默认 ProxyIP
+	ProxyIPDetect   bool              // 名称无区域码时是否经 cdn-cgi/trace 探测 cfcolo
+	ProxyIPByRegion map[string]string // 按三字码（cfcolo/机场码）指定 ProxyIP
 
 	VlessFile     string
 	ResultFile    string
@@ -169,6 +184,7 @@ func LoadFrom(rootDir, filename string) (*RuntimeConfig, error) {
 		SubscriptionPort:         subPort,
 		LoginURL:                 loginURL,
 		LoginPassword:            loginPassword,
+		WebPassword:              resolveWebPassword(sections.auth, loginPassword),
 		UserinfoExpire:           userinfoExpire,
 		VlessFile:                resolvePath(rootDir, fileValue(sections.files, "vless_file", "data/vless.txt")),
 		ResultFile:               resolvePath(rootDir, fileValue(sections.files, "result_file", "data/result.csv")),
@@ -186,6 +202,9 @@ func LoadFrom(rootDir, filename string) (*RuntimeConfig, error) {
 
 	applySubConverterSettings(cfg, rootDir, data)
 	applyGenSection(cfg, data)
+	applyNodesSection(cfg, data)
+	applyFlagSection(cfg, data)
+	applyProxyIPSection(cfg, data)
 	return cfg, nil
 }
 
@@ -303,6 +322,19 @@ func parseRemoteSection(m map[string]interface{}) (controlDomain, adminURL strin
 	return controlDomain, adminURL, timeout, subPort, nil
 }
 
+// resolveWebPassword 计算本面板 Web 控制台口令：
+// 优先级：环境变量 EDT_WEB_PASSWORD > auth.web_password > auth.login_password（兼容旧版单口令）。
+// 显式配置空字符串（web_password: ""）表示关闭 Web 控制台鉴权。
+func resolveWebPassword(m map[string]interface{}, loginPassword string) string {
+	if v := os.Getenv("EDT_WEB_PASSWORD"); v != "" {
+		return v
+	}
+	if v, ok := m["web_password"]; ok && v != nil {
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	return loginPassword
+}
+
 // parseAuthSection 解析 auth 节；口令优先取环境变量 EDT_LOGIN_PASSWORD。
 // login_url / userinfo_expire 均可省略：
 //   - login_url 默认由 control_domain 拼接为 https://<control_domain>/login；
@@ -371,6 +403,90 @@ func applySubConverterSettings(cfg *RuntimeConfig, rootDir string, data map[stri
 	if v, ok := scm["port"]; ok {
 		if p, err := asInt(v, "subconverter.port"); err == nil {
 			cfg.SubConverterPort = p
+		}
+	}
+}
+
+// applyNodesSection 应用可选的 nodes 节（节点解析行为）。
+// 节缺失时保持默认值（bare_ip_role=proxyip），字段非法时忽略该项维持缺省。
+func applyNodesSection(cfg *RuntimeConfig, data map[string]interface{}) {
+	cfg.BareIPRole = "proxyip"
+	raw, ok := data["nodes"]
+	if !ok || raw == nil {
+		return
+	}
+	m, ok := raw.(map[string]interface{})
+	if !ok {
+		return
+	}
+	if v, ok := m["bare_ip_role"]; ok && v != nil {
+		role := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", v)))
+		if role == "proxyip" || role == "yxip" {
+			cfg.BareIPRole = role
+		}
+	}
+}
+
+// applyFlagSection 应用可选的 flag 节（国旗补全开关）。
+// 缺省：三字码开（机场码几乎无歧义）、二字码关（存在误匹配风险，需显式开启）。
+func applyFlagSection(cfg *RuntimeConfig, data map[string]interface{}) {
+	cfg.FlagIATA = true
+	raw, ok := data["flag"]
+	if !ok || raw == nil {
+		return
+	}
+	m, ok := raw.(map[string]interface{})
+	if !ok {
+		return
+	}
+	if v, ok := m["iata"]; ok && v != nil {
+		if b, err := asBool(v, "flag.iata"); err == nil {
+			cfg.FlagIATA = b
+		}
+	}
+	if v, ok := m["iso2"]; ok && v != nil {
+		if b, err := asBool(v, "flag.iso2"); err == nil {
+			cfg.FlagISO2 = b
+		}
+	}
+}
+
+// applyProxyIPSection 应用可选的 proxyip 节（全局/分区域 ProxyIP 兜底）。
+// by_region 的键为三字码（cfcolo / 机场码），值可为 IP、域名或变量引用（数据文件侧解析）。
+func applyProxyIPSection(cfg *RuntimeConfig, data map[string]interface{}) {
+	raw, ok := data["proxyip"]
+	if !ok || raw == nil {
+		return
+	}
+	m, ok := raw.(map[string]interface{})
+	if !ok {
+		return
+	}
+	if v, ok := m["global"]; ok && v != nil {
+		cfg.ProxyIPGlobal = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	if v, ok := m["detect"]; ok && v != nil {
+		if b, err := asBool(v, "proxyip.detect"); err == nil {
+			cfg.ProxyIPDetect = b
+		}
+	}
+	if rawMap, ok := m["by_region"]; ok && rawMap != nil {
+		if regions, ok := rawMap.(map[string]interface{}); ok {
+			byRegion := make(map[string]string, len(regions))
+			for code, val := range regions {
+				code = strings.ToUpper(strings.TrimSpace(code))
+				if code == "" || val == nil {
+					continue
+				}
+				v := strings.TrimSpace(fmt.Sprintf("%v", val))
+				if v == "" {
+					continue
+				}
+				byRegion[code] = v
+			}
+			if len(byRegion) > 0 {
+				cfg.ProxyIPByRegion = byRegion
+			}
 		}
 	}
 }
