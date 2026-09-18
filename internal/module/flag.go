@@ -77,7 +77,7 @@ var iso2ToZh = map[string]string{
 	"TC": "特克斯和凯科斯群岛", "TD": "乍得", "TF": "法属南部领地",
 	"TG": "多哥", "TH": "泰国", "TJ": "塔吉克斯坦", "TK": "托克劳",
 	"TL": "东帝汶", "TM": "土库曼斯坦", "TN": "突尼斯", "TO": "汤加",
-	"TR": "土耳其", "TT": "特立尼达和多巴哥", "TV": "图瓦卢", "TW": "台湾",
+	"TR": "土耳其", "TT": "特立尼达和多巴哥", "TV": "图瓦卢", "TW": "中国台湾",
 	"TZ": "坦桑尼亚", "UA": "乌克兰", "UG": "乌干达", "UM": "美属外围小岛",
 	"US": "美国", "UY": "乌拉圭", "UZ": "乌兹别克斯坦", "VA": "梵蒂冈",
 	"VC": "圣文森特和格林纳丁斯", "VE": "委内瑞拉", "VG": "英属维尔京群岛",
@@ -97,6 +97,13 @@ var specialFlags = map[string]string{
 
 var numSuffixRe = regexp.MustCompile(`^\(\d+\)$`)
 
+// twFlag / cnFlag TW 区域旗帜与中国的旗帜 emoji。
+// 按需求约定：TW 区域一律使用中国旗帜展示，避免出现 TW 旗帜 emoji。
+const (
+	twFlag = "\U0001F1F9\U0001F1FC"
+	cnFlag = "\U0001F1E8\U0001F1F3"
+)
+
 // occurrence 记录单个 flag emoji 在文本里的一次出现。
 type occurrence struct {
 	flag    string
@@ -110,6 +117,10 @@ type occurrence struct {
 //   - 若 emoji 出现在末尾（其后仅可能跟 (N) 数字后缀），保留不替换
 //   - 否则在 emoji 后追加 " 国家中文名"
 func AddFlagEmoji(text string) string {
+	// 需求约定：TW 区域旗帜统一替换为中国旗帜，并直接标注「中国台湾」；
+	// 后续 CN 旗帜的国家名标注因文本已含「中国」子串而自动跳过，不重复。
+	text = strings.ReplaceAll(text, twFlag, cnFlag+" 中国台湾")
+
 	// 先处理特殊旗帜
 	for flag, country := range specialFlags {
 		if !strings.Contains(text, flag) {
