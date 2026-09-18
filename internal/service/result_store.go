@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 
 	"edt/internal/module"
@@ -116,27 +117,32 @@ func (r *ResultStore) GetFirstIP() string {
 // ProxyEntry 供 id=3 订阅构建使用。
 type ProxyEntry struct {
 	Name string
+	Code string // 原始区域码（cfcolo / 机场码），供分区域 ProxyIP 匹配
 	IP   string
 	YxIP string
 }
 
 // GetAllAsProxyEntries 把 result.csv 转换为 id=3 订阅所需的节点列表。
-func (r *ResultStore) GetAllAsProxyEntries(pre string, ip string) ([]ProxyEntry, error) {
+// 名称 = pre + 区域码；按 flag 开关补旗（三字码 / 二字码），
+// TW 区域码按约定使用中国旗帜（见 module.AddFlagByName）。
+func (r *ResultStore) GetAllAsProxyEntries(pre, ip string, opt module.FlagOptions) ([]ProxyEntry, error) {
 	rows, err := r.readRows()
 	if err != nil {
 		return nil, err
 	}
 	entries := make([]ProxyEntry, 0, len(rows))
 	for _, row := range rows {
-		code := row.Code
-		switch code {
-		case "HKG":
-			code = "🇭🇰 HKG"
-		case "NRT":
-			code = "🇯🇵 NRT"
+		code := strings.ToUpper(strings.TrimSpace(row.Code))
+		// 先对纯区域码补旗（保证 code 本身作为独立 token 可被识别），
+		// 再拼 pre 前缀并补中文名，与旧行为（HKG/NRT 带旗）保持兼容。
+		name := code
+		if opt.IATA || opt.ISO2 {
+			name = module.AddFlagByName(code, opt)
 		}
+		name = module.AddFlagEmoji(pre + name)
 		entries = append(entries, ProxyEntry{
-			Name: module.AddFlagEmoji(pre + code),
+			Name: name,
+			Code: code,
 			IP:   ip,
 			YxIP: row.IP,
 		})

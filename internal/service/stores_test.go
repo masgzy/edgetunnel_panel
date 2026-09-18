@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"edt/internal/module"
 )
 
 // TestPreIPStoreSetGetReload pre_ip.txt 两行格式的读写与热更新。
@@ -64,7 +66,7 @@ func TestResultStoreReadAndEntries(t *testing.T) {
 	if ip := r.GetFirstIP(); ip != "" {
 		t.Errorf("缺失文件 GetFirstIP = %q, 期望空", ip)
 	}
-	if entries, err := r.GetAllAsProxyEntries("", ""); err != nil || len(entries) != 0 {
+	if entries, err := r.GetAllAsProxyEntries("", "", module.FlagOptions{}); err != nil || len(entries) != 0 {
 		t.Errorf("缺失文件 GetAllAsProxyEntries = (%d,%v), 期望 (0,nil)", len(entries), err)
 	}
 	if _, err := r.GetFirst(); !errors.Is(err, ErrNoData) {
@@ -92,22 +94,21 @@ func TestResultStoreReadAndEntries(t *testing.T) {
 		t.Errorf("GetFirst 内容不符: %v", first)
 	}
 
-	entries, err := r.GetAllAsProxyEntries("JP", "9.9.9.9")
+	entries, err := r.GetAllAsProxyEntries("JP", "9.9.9.9", module.FlagOptions{IATA: true})
 	if err != nil {
 		t.Fatalf("GetAllAsProxyEntries 失败: %v", err)
 	}
 	if len(entries) != 3 {
 		t.Fatalf("期望 3 个条目, 实际 %d", len(entries))
 	}
-	// HKG/NRT 映射带旗帜 emoji，SJC 保持原样
-	if !strings.Contains(entries[0].Name, "HKG") {
-		t.Errorf("条目 0 名称应含 HKG: %q", entries[0].Name)
-	}
-	if !strings.Contains(entries[1].Name, "NRT") {
-		t.Errorf("条目 1 名称应含 NRT: %q", entries[1].Name)
-	}
-	if !strings.Contains(entries[2].Name, "SJC") {
-		t.Errorf("条目 2 名称应含 SJC: %q", entries[2].Name)
+	// IATA 开启：三个码均应带旗，且 Code 字段保留原始码供分区域匹配
+	for i, want := range []string{"HKG", "NRT", "SJC"} {
+		if !strings.Contains(entries[i].Name, want) {
+			t.Errorf("条目 %d 名称应含 %s: %q", i, want, entries[i].Name)
+		}
+		if entries[i].Code != want {
+			t.Errorf("条目 %d Code = %q, 期望 %q", i, entries[i].Code, want)
+		}
 	}
 	for i, want := range []string{"9.9.9.9", "9.9.9.9", "9.9.9.9"} {
 		if entries[i].IP != want {
@@ -125,7 +126,7 @@ func TestResultStoreReadAndEntries(t *testing.T) {
 	if err := os.WriteFile(csvPath, []byte("IP,Send,Res,PLR,Ping,Speed,Code\nbad,row\n"), 0o644); err != nil {
 		t.Fatalf("写入失败: %v", err)
 	}
-	entries, err = r.GetAllAsProxyEntries("", "")
+	entries, err = r.GetAllAsProxyEntries("", "", module.FlagOptions{})
 	if err != nil || len(entries) != 0 {
 		t.Errorf("残行应被跳过: (%d,%v), 期望 (0,nil)", len(entries), err)
 	}

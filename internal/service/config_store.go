@@ -27,10 +27,11 @@ type ConfigEntry struct {
 
 // ConfigStore 管理 vless.txt 文件的读写。
 type ConfigStore struct {
-	mu        sync.Mutex // 保护文件读写，防止并发数据竞争
-	filePath  string
-	nrtFile   string
-	variables map[string]config.VariableSource
+	mu         sync.Mutex // 保护文件读写，防止并发数据竞争
+	filePath   string
+	nrtFile    string
+	variables  map[string]config.VariableSource
+	bareIPRole string // 无 @ 行裸 IP 角色：proxyip（默认）| yxip
 }
 
 // NewConfigStore 构造 ConfigStore。
@@ -54,6 +55,27 @@ func (c *ConfigStore) FilePath() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.filePath
+}
+
+// SetBareIPRole 设置无 @ 行裸 IP 角色（proxyip | yxip；其余值按 proxyip 处理）。
+// 配置热重载时调用（低频）；锁内赋值与 parseLine 读端互斥。
+func (c *ConfigStore) SetBareIPRole(role string) {
+	if role != "yxip" {
+		role = "proxyip"
+	}
+	c.mu.Lock()
+	c.bareIPRole = role
+	c.mu.Unlock()
+}
+
+// BareIPRole 返回当前裸 IP 角色。
+func (c *ConfigStore) BareIPRole() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.bareIPRole == "yxip" {
+		return "yxip"
+	}
+	return "proxyip"
 }
 
 // Variables 返回变量表。
@@ -445,7 +467,8 @@ func splitLinesKeepEnds(s string) []string {
 	return lines
 }
 
-// parseLine 解析单行节点文本（两种形态：proxyip@yx_ip#name / proxyip#name）。
+// parseLine 解析单行节点文本（三种形态：
+// proxyip@yx_ip#name / proxyip#name / nodes.bare_ip_role=yxip 时 yx_ip#name）。
 func (c *ConfigStore) parseLine(line string) (ConfigEntry, bool) {
 	if m := reWithYx.FindStringSubmatch(line); m != nil {
 		rawProxyIP := strings.TrimSpace(m[1])
@@ -467,15 +490,25 @@ func (c *ConfigStore) parseLine(line string) (ConfigEntry, bool) {
 		return entry, true
 	}
 	if m := rePlain.FindStringSubmatch(line); m != nil {
-		rawProxyIP := strings.TrimSpace(m[1])
+		rawValue := strings.TrimSpace(m[1])
 		entry := ConfigEntry{
-			Name:  strings.TrimSpace(m[2]),
-			rawIP: rawProxyIP,
+			Name: strings.TrimSpace(m[2]),
 		}
-		if rawProxyIP == "" || rawProxyIP == "DIRECT" {
+		// nodes.bare_ip_role=yxip：裸值视为优选 IP（无 @ 的行整体受此开关影响，
+		// 带 @ 的完整格式不受影响）；默认仍视为 ProxyIP（旧行为）。
+		if c.bareIPRole == "yxip" {
+			yxHost, yxPort := SplitHostPort(rawValue)
+			entry.YxIP = c.resolveVariable(rawValue)
+			entry.YxHost = c.resolveVariable(yxHost)
+			entry.YxPort = yxPort
+			entry.rawYxIP = rawValue
+			return entry, true
+		}
+		entry.rawIP = rawValue
+		if rawValue == "" || rawValue == "DIRECT" {
 			entry.IP = ""
 		} else {
-			entry.IP = c.resolveVariable(rawProxyIP)
+			entry.IP = c.resolveVariable(rawValue)
 		}
 		return entry, true
 	}

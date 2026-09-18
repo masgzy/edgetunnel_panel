@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"edt/internal/config"
@@ -70,6 +71,21 @@ type SubscriptionService struct {
 	genManual        config.GenSettings
 	genSet           bool // SetGenConfig 是否已调用（未调用时用缺省值）
 
+	// 节点解析行为（nodes 节）：无 @ 行裸 IP 角色
+	bareIPRole string
+
+	// 国旗补全（flag 节）：三字码 / 二字码开关
+	flagIATA bool
+	flagISO2 bool
+
+	// ProxyIP 兜底（proxyip 节）：全局默认 + 按区域码 + cfcolo 探测
+	proxyGlobal   string
+	proxyDetect   bool
+	proxyByRegion map[string]string
+	detectMu      sync.Mutex
+	detectCache   map[string]string // host -> cfcolo（仅缓存命中，失败不缓存）
+	detectBudget  atomic.Int64      // 本次订阅构建内剩余探测次数（防大量未知节点拖慢构建）
+
 	// userinfo 过期时间字符串（由 server 注入）
 	userinfoExpireStr string
 }
@@ -113,6 +129,48 @@ func (s *SubscriptionService) SetGenConfig(autoFromPanel, aggregateWorkerSub boo
 	s.genAggregate = aggregateWorkerSub
 	s.genManual = manual.Normalized()
 	s.genSet = true
+}
+
+// SetBareIPRole 注入无 @ 行裸 IP 角色（nodes.bare_ip_role：proxyip | yxip）。
+func (s *SubscriptionService) SetBareIPRole(role string) {
+	if role != "yxip" {
+		role = "proxyip"
+	}
+	s.cfgMu.Lock()
+	s.bareIPRole = role
+	s.cfgMu.Unlock()
+}
+
+// SetFlagOptions 注入国旗补全开关（flag 节：三字码 / 二字码）。
+func (s *SubscriptionService) SetFlagOptions(iata, iso2 bool) {
+	s.cfgMu.Lock()
+	s.flagIATA, s.flagISO2 = iata, iso2
+	s.cfgMu.Unlock()
+}
+
+// SetProxyIPSettings 注入 ProxyIP 兜底配置（proxyip 节）。
+// byRegion 为整表替换（与 Reload 的 map 字段约定一致，不做并发写）。
+func (s *SubscriptionService) SetProxyIPSettings(global string, detect bool, byRegion map[string]string) {
+	s.cfgMu.Lock()
+	s.proxyGlobal = global
+	s.proxyDetect = detect
+	s.proxyByRegion = byRegion
+	s.cfgMu.Unlock()
+}
+
+// flagOptions 读取当前国旗开关（调用方需已持有读锁）。
+func (s *SubscriptionService) flagOptions() module.FlagOptions {
+	return module.FlagOptions{IATA: s.flagIATA, ISO2: s.flagISO2}
+}
+
+// applyFlagToName 对节点名依次做「已有旗帜补中文名 + 无旗帜按码补旗」。
+// legacy=false 时启用（subID!=3 的旧行为路径）；调用方需已持有读锁。
+func (s *SubscriptionService) applyFlagToName(name string) string {
+	out := module.AddFlagEmoji(name)
+	if s.flagIATA || s.flagISO2 {
+		out = module.AddFlagByName(out, s.flagOptions())
+	}
+	return out
 }
 
 // Reload 热更新订阅服务配置（配置重载时调用）。
@@ -223,7 +281,7 @@ func (s *SubscriptionService) BuildSubscription(subID, subType string) (string, 
 		name := item.Name
 		currentName := name
 		if subID != "3" {
-			currentName = module.AddFlagEmoji(name)
+			currentName = s.applyFlagToName(name)
 		}
 		currentYxIP := item.YxIP
 		if currentYxIP == "" {
@@ -281,7 +339,7 @@ func (s *SubscriptionService) BuildMihomoSubscription(subID, subType, configURL 
 		name := item.Name
 		currentName := name
 		if subID != "3" {
-			currentName = module.AddFlagEmoji(name)
+			currentName = s.applyFlagToName(name)
 		}
 		currentYxIP := item.YxIP
 		if currentYxIP == "" {
@@ -458,11 +516,14 @@ func (s *SubscriptionService) resolveUUID(profile config.SubscriptionProfile) (s
 }
 
 // loadSubscriptionData 加载某订阅 ID 对应的数据源（返回拼接后的源文本与解析节点）。
+// 节点未显式指定 ProxyIP 时按 proxyip 节兑底（分区域 -> 探测 -> 全局）。
 func (s *SubscriptionService) loadSubscriptionData(subID string) (string, []SubItem, error) {
 	source, ok := s.dataSources[subID]
 	if !ok {
 		return "", nil, fmt.Errorf("id=%s 没有配置数据源，请在 config.yml 中设置 data_sources.by_id", subID)
 	}
+	// 探测预算按次重置（原子计数，避免并发构建下的数据竞争）
+	s.detectBudget.Store(detectBudgetPerBuild)
 	switch source.Kind {
 	case "vless_file":
 		yxIP := s.resultStore.GetFirstIP()
@@ -472,6 +533,7 @@ func (s *SubscriptionService) loadSubscriptionData(subID string) (string, []SubI
 		} else {
 			store = NewConfigStore(source.Path, s.nrtFile, s.configStore.Variables())
 		}
+		store.SetBareIPRole(s.bareIPRole)
 		entries, err := store.Parse()
 		if err != nil {
 			return "", nil, err
@@ -482,6 +544,7 @@ func (s *SubscriptionService) loadSubscriptionData(subID string) (string, []SubI
 				Name: e.Name, IP: e.IP, YxIP: e.YxIP, YxHost: e.YxHost, YxPort: e.YxPort,
 			})
 		}
+		s.fillFallbackProxyIP(items)
 		return yxIP, items, nil
 	case "json_file":
 		yxIP := s.resultStore.GetFirstIP()
@@ -493,12 +556,21 @@ func (s *SubscriptionService) loadSubscriptionData(subID string) (string, []SubI
 		if err := json.Unmarshal(data, &items); err != nil {
 			return "", nil, fmt.Errorf("解析 json 数据源失败: %w", err)
 		}
+		s.fillFallbackProxyIP(items)
 		return yxIP, items, nil
 	case "preferred_result":
 		pre, ip := s.preIPStore.Get()
-		entries, err := s.resultStore.GetAllAsProxyEntries(pre, ip)
+		entries, err := s.resultStore.GetAllAsProxyEntries(pre, ip, s.flagOptions())
 		if err != nil {
 			return "", nil, err
+		}
+		for i := range entries {
+			// 分区域优先：result.csv 的 Code（cfcolo）命中 by_region 时覆盖面板单值
+			if v, ok := s.proxyByRegion[entries[i].Code]; ok && v != "" {
+				entries[i].IP = v
+			} else if entries[i].IP == "" {
+				entries[i].IP = s.proxyGlobal
+			}
 		}
 		items := make([]SubItem, 0, len(entries))
 		for _, e := range entries {
@@ -507,6 +579,76 @@ func (s *SubscriptionService) loadSubscriptionData(subID string) (string, []SubI
 		return "", items, nil
 	}
 	return "", nil, fmt.Errorf("id=%s 的数据源类型不支持: %s", subID, source.Kind)
+}
+
+// detectBudgetPerBuild 单次订阅构建内最多执行的 cfcolo 探测次数。
+const detectBudgetPerBuild = 16
+
+// fillFallbackProxyIP 为未显式指定 ProxyIP 的节点填入兑底值（就地修改）。
+func (s *SubscriptionService) fillFallbackProxyIP(items []SubItem) {
+	for i := range items {
+		if items[i].IP != "" {
+			continue
+		}
+		host := items[i].YxHost
+		if host == "" {
+			host = items[i].YxIP
+		}
+		items[i].IP = s.resolveProxyIP(items[i].Name, host)
+	}
+}
+
+// resolveProxyIP 为无 ProxyIP 的节点解析兑底值：
+//  1. 名称中的区域码查 by_region（三字码优先，其次二字码；键为用户配置的任意码）；
+//  2. detect=true 且名称无码时，经 cdn-cgi/trace 探测 cfcolo 后再查 by_region；
+//  3. 全局默认 proxyip.global（未配置则为空，保持旧行为）。
+func (s *SubscriptionService) resolveProxyIP(name, host string) string {
+	if len(s.proxyByRegion) > 0 {
+		tokens := module.LetterTokens(name)
+		for _, want := range []int{3, 2} {
+			for _, tok := range tokens {
+				if len(tok) != want {
+					continue
+				}
+				if v, ok := s.proxyByRegion[tok]; ok && v != "" {
+					return v
+				}
+			}
+		}
+	}
+	if s.proxyDetect {
+		if code := s.detectColo(host); code != "" {
+			if v, ok := s.proxyByRegion[code]; ok && v != "" {
+				return v
+			}
+		}
+	}
+	return s.proxyGlobal
+}
+
+// detectColo 探测 host 的 cfcolo（带进程内缓存与单次构建预算）。
+func (s *SubscriptionService) detectColo(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" || s.detectBudget.Add(-1) < 0 {
+		return ""
+	}
+	s.detectMu.Lock()
+	if v, ok := s.detectCache[host]; ok {
+		s.detectMu.Unlock()
+		return v
+	}
+	s.detectMu.Unlock()
+
+	code := module.FetchCfColo(host)
+	if code != "" {
+		s.detectMu.Lock()
+		if s.detectCache == nil {
+			s.detectCache = map[string]string{}
+		}
+		s.detectCache[host] = code
+		s.detectMu.Unlock()
+	}
+	return code
 }
 
 // applyUniqueNames 为重名节点追加序号后缀，保证订阅内名称唯一。
