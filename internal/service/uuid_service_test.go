@@ -112,9 +112,16 @@ func TestUUIDServiceClearAndRunCount(t *testing.T) {
 	if data, err := os.ReadFile(runTimeFile); err != nil || string(data) != "0" {
 		t.Errorf("Clear 后文件内容 = (%q,%v), 期望 (\"0\",nil)", data, err)
 	}
-	// 初始缓存日期为 1970-01-01，不应视为有效缓存
-	if u.isSameOrNextDay() {
-		t.Error("1970-01-01 缓存日期不应视为有效")
+	// 无缓存时 Info 不可用；缓存恢复后 fetchedAt 应为最近拉取时间
+	if _, ok := u.Info(); ok {
+		t.Error("Clear 后不应有 UUID 缓存信息")
+	}
+	u.mu.Lock()
+	u.cachedUUID = "test-uuid"
+	u.fetchedAt = time.Now()
+	u.mu.Unlock()
+	if info, ok := u.Info(); !ok || info.UUID != "test-uuid" || info.Stale {
+		t.Errorf("Info = %+v, ok=%v, 期望新鲜缓存", info, ok)
 	}
 }
 
@@ -127,13 +134,13 @@ func TestUUIDServiceReloadResetsState(t *testing.T) {
 	// 直接注入内部快照状态，验证 Reload 的失效语义
 	u.mu.Lock()
 	u.cachedUUID = "cached-uuid"
-	u.cachedDate = time.Now().Format("2006-01-02") // 当天：有效缓存窗口内
+	u.fetchedAt = time.Now() // 新鲜缓存窗口内
 	u.genOK = true
 	u.usageOK = true
 	u.mu.Unlock()
 
-	if !u.isSameOrNextDay() {
-		t.Fatal("预热：当天日期应视为有效缓存日期")
+	if _, ok := u.Info(); !ok {
+		t.Fatal("预热：应有 UUID 缓存信息")
 	}
 	u.Reload("https://p2.example.com/admin/config.json", runTimeFile, "d2.example.com", 3)
 
@@ -143,9 +150,8 @@ func TestUUIDServiceReloadResetsState(t *testing.T) {
 	if _, _, ok := u.GenPanelSnapshot(); ok {
 		t.Error("Reload 后生成配置快照应失效")
 	}
-	// Reload 把缓存日期重置为 1970-01-01，不应再视为有效
-	if u.isSameOrNextDay() {
-		t.Error("Reload 后缓存日期 1970-01-01 不应视为有效")
+	if _, ok := u.Info(); ok {
+		t.Error("Reload 后 UUID 缓存信息应失效")
 	}
 	u.mu.Lock()
 	cachedUUID := u.cachedUUID

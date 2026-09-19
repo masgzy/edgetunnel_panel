@@ -65,7 +65,7 @@ type app struct {
 
 const (
 	// appVersion 面板版本号：CLI --version、启动横幅与 /api/status（设置页关于）共用。
-	appVersion = "1.0.0-alpha3"
+	appVersion = "1.0.0-alpha4"
 )
 
 func main() {
@@ -154,6 +154,7 @@ func reloadRuntime(cli CLI, a *app, sup *scSupervisor, newCfg *config.RuntimeCon
 	a.preIP.Reload(newCfg.PreIPFile)
 	a.result.Reload(newCfg.ResultFile)
 	a.uuid.Reload(newCfg.AdminURL, newCfg.RunTimeFile, newCfg.ControlDomain, newCfg.RequestTimeout)
+	a.uuid.SetCacheTTL(newCfg.UUIDCacheTTL)
 	a.uuid.SetAuthConfig(module.AuthConfig{
 		LoginURL:       newCfg.LoginURL,
 		LoginPassword:  newCfg.LoginPassword,
@@ -413,6 +414,7 @@ func newApp(cfg *config.RuntimeConfig) *app {
 	uuidService := service.NewUUIDService(
 		cfg.AdminURL, cfg.RunTimeFile, cfg.ControlDomain, cfg.RequestTimeout,
 	)
+	uuidService.SetCacheTTL(cfg.UUIDCacheTTL)
 	uuidService.SetAuthConfig(module.AuthConfig{
 		LoginURL:       cfg.LoginURL,
 		LoginPassword:  cfg.LoginPassword,
@@ -431,6 +433,9 @@ func newApp(cfg *config.RuntimeConfig) *app {
 	subService.SetBareIPRole(cfg.BareIPRole)
 	subService.SetFlagOptions(cfg.FlagIATA, cfg.FlagISO2)
 	subService.SetProxyIPSettings(cfg.ProxyIPGlobal, cfg.ProxyIPDetect, cfg.ProxyIPByRegion)
+	// 启动预热：后台预取 UUID 与面板快照（磁盘缓存命中时零网络等待），
+	// 避免首个订阅请求 / 仪表盘首屏阻塞在远程面板上。
+	uuidService.Prewarm()
 	return &app{
 		cfg:      cfg,
 		cfgStore: cfgStore,
