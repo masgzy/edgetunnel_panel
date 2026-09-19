@@ -198,6 +198,19 @@ func SubFull(e SubEntry) string {
 	if gn.SkipCertVerify {
 		b.WriteString("    skip-cert-verify: true\n")
 	}
+	if gn.ALPN != "" && gn.Protocol != "ss" {
+		// mihomo alpn 为列表（逗号分隔拆分；对齐订阅链接的 alpn 参数）。
+		parts := strings.Split(gn.ALPN, ",")
+		items := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if s := strings.TrimSpace(p); s != "" {
+				items = append(items, yamlStr(s))
+			}
+		}
+		if len(items) > 0 {
+			b.WriteString("    alpn: [" + strings.Join(items, ", ") + "]\n")
+		}
+	}
 	if gn.Fingerprint != "" && gn.Protocol != "ss" {
 		b.WriteString("    client-fingerprint: " + yamlStr(gn.Fingerprint) + "\n")
 	}

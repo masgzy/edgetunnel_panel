@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"edt/internal/config"
 )
@@ -223,4 +224,79 @@ func TestDetectBudgetConcurrent(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// TestBuildNodeLinkALPN 生成配置 ALPN 字段 → 分享链接 alpn 参数（需求：链接需携带 alpn）。
+func TestBuildNodeLinkALPN(t *testing.T) {
+	base := config.DefaultGenSettings()
+	// 未配置 ALPN：链接不携带 alpn 参数
+	link := BuildNodeLink(base, "edt", LinkParams{
+		UUID: "233a3a24-35a5-4a1d-9ebe-3e0bda3b3f3b", Authority: "1.2.3.4:443",
+		Domain: "example.com", Name: "n1",
+	})
+	if strings.Contains(link, "alpn=") {
+		t.Errorf("未配置 ALPN 时不应输出 alpn 参数: %s", link)
+	}
+	// 配置 ALPN：vless / trojan 链接均携带编码后的 alpn
+	g := base
+	g.ALPN = "h2,http/1.1"
+	for _, proto := range []string{"vless", "trojan"} {
+		g2 := g
+		g2.Protocol = proto
+		link := BuildNodeLink(g2, "edt", LinkParams{
+			UUID: "233a3a24-35a5-4a1d-9ebe-3e0bda3b3f3b", Authority: "1.2.3.4:443",
+			Domain: "example.com", Name: "n1",
+		})
+		if !strings.Contains(link, "alpn=h2%2Chttp%2F1.1") {
+			t.Errorf("%s 链接应携带编码 alpn 参数: %s", proto, link)
+		}
+	}
+}
+
+// TestUUIDDiskCacheRoundtrip UUID 磁盘缓存：落盘 → 新实例恢复（重启零等待语义）。
+func TestUUIDDiskCacheRoundtrip(t *testing.T) {
+	dir := t.TempDir()
+	runTimeFile := dir + "/run_time.txt"
+
+	u1 := NewUUIDService("https://p.example.com/admin/config.json", runTimeFile, "p.example.com", 5)
+	u1.mu.Lock()
+	u1.cachedUUID = "disk-cached-uuid"
+	u1.fetchedAt = time.Now()
+	u1.genOK = true
+	u1.genSettings = config.DefaultGenSettings()
+	u1.genSettings.Transport = "xhttp"
+	u1.usagePages, u1.usageWorkers, u1.usageMax, u1.usageOK = 10, 20, 100000, true
+	u1.genHost = "panel.example.com"
+	u1.genHosts = []string{"panel.example.com"}
+	cache := u1.buildDiskCacheLocked()
+	u1.mu.Unlock()
+	u1.saveDiskCache(cache)
+
+	// 新实例（模拟重启）应从磁盘恢复 UUID/快照
+	u2 := NewUUIDService("https://p.example.com/admin/config.json", runTimeFile, "p.example.com", 5)
+	u2.mu.Lock()
+	gotUUID := u2.cachedUUID
+	gotGen := u2.genOK
+	gotGenTransport := u2.genSettings.Transport
+	u2.mu.Unlock()
+	if gotUUID != "disk-cached-uuid" {
+		t.Errorf("磁盘缓存恢复 UUID = %q, 期望 disk-cached-uuid", gotUUID)
+	}
+	if !gotGen || gotGenTransport != "xhttp" {
+		t.Errorf("磁盘缓存恢复生成配置不完整: ok=%v transport=%q", gotGen, gotGenTransport)
+	}
+	if cf, ok := u2.UsageSnapshot(); !ok || cf.Pages != 10 || cf.Workers != 20 {
+		t.Errorf("磁盘缓存恢复用量快照失败: %+v ok=%v", cf, ok)
+	}
+	// Get 应直接返回缓存值（不发网络）
+	if got, err := u2.Get(); err != nil || got != "disk-cached-uuid" {
+		t.Errorf("Get = (%q,%v), 期望命中磁盘缓存", got, err)
+	}
+	// Clear 应删除磁盘缓存文件
+	if err := u2.Clear(); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+	if _, err := os.Stat(u2.cachePath); !os.IsNotExist(err) {
+		t.Errorf("Clear 后磁盘缓存应被删除, err=%v", err)
+	}
 }

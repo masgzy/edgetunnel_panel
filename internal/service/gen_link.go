@@ -65,6 +65,16 @@ func allowInsecureParam(g config.GenSettings) string {
 	return ""
 }
 
+// alpnParam 应用层协议协商参数（形如 &alpn=h2%2Chttp%2F1.1），未配置时返回空串。
+// 对齐生态订阅输出：面板 config.json 的 ALPN 原样透传（逗号分隔列表整体编码）。
+func alpnParam(g config.GenSettings) string {
+	alpn := strings.TrimSpace(g.ALPN)
+	if alpn == "" {
+		return ""
+	}
+	return "&alpn=" + url.QueryEscape(alpn)
+}
+
 // transportView 返回 type 参数值与路径字段名（gRPC 用 serviceName 并以 authority 承载域名字段）。
 func transportView(g config.GenSettings, uuid string) (typeVal, pathField, hostField string) {
 	switch g.Transport {
@@ -117,6 +127,7 @@ func BuildNodeLink(g config.GenSettings, format string, p LinkParams) string {
 	frag := FragmentParam(g)
 	ech := ECHParam(g)
 	insec := allowInsecureParam(g)
+	alpn := alpnParam(g)
 
 	switch g.Protocol {
 	case "ss":
@@ -152,7 +163,7 @@ func BuildNodeLink(g config.GenSettings, format string, p LinkParams) string {
 			url.QueryEscape(p.Domain),
 			g.Fingerprint,
 			pathField, url.QueryEscape(rawPath),
-			frag, ech, insec,
+			frag+alpn, ech, insec,
 			url.QueryEscape(p.Name),
 		)
 
@@ -175,7 +186,7 @@ func BuildNodeLink(g config.GenSettings, format string, p LinkParams) string {
 			hostField, url.QueryEscape(p.Domain),
 			pathField, url.QueryEscape(rawPath),
 			url.QueryEscape(p.Domain),
-			packet+frag+ech+insec,
+			packet+frag+ech+insec+alpn,
 			g.Fingerprint,
 			url.QueryEscape(p.Name))
 		return b.String()
