@@ -59,6 +59,7 @@ type RuntimeConfig struct {
 	AdminURL         string
 	RequestTimeout   int
 	SubscriptionPort int
+	UUIDCacheTTL     int // uuid 缓存有效期（秒；remote.uuid_cache_ttl，<=0 用缺省 86400）
 
 	LoginURL       string
 	LoginPassword  string // 远程控制端（EDT Worker 面板）登录口令
@@ -164,7 +165,7 @@ func LoadFrom(rootDir, filename string) (*RuntimeConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	controlDomain, adminURL, timeout, subPort, err := parseRemoteSection(sections.remote)
+	controlDomain, adminURL, timeout, subPort, uuidTTL, err := parseRemoteSection(sections.remote)
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +183,7 @@ func LoadFrom(rootDir, filename string) (*RuntimeConfig, error) {
 		AdminURL:                 adminURL,
 		RequestTimeout:           timeout,
 		SubscriptionPort:         subPort,
+		UUIDCacheTTL:             uuidTTL,
 		LoginURL:                 loginURL,
 		LoginPassword:            loginPassword,
 		WebPassword:              resolveWebPassword(sections.auth, loginPassword),
@@ -291,10 +293,11 @@ func parseAppSection(m map[string]interface{}) (host string, port int, debug boo
 // parseRemoteSection 解析 remote 节：control_domain / admin_url / request_timeout / subscription_port。
 // admin_url 可省略：默认由 control_domain（base）拼接为
 // https://<control_domain>/admin/config.json；仅当控制端路径非默认时才需显式配置。
-func parseRemoteSection(m map[string]interface{}) (controlDomain, adminURL string, timeout, subPort int, err error) {
+// uuid_cache_ttl 可省略：uuid 缓存有效期（秒），缺省 86400（24h）。
+func parseRemoteSection(m map[string]interface{}) (controlDomain, adminURL string, timeout, subPort, uuidTTL int, err error) {
 	controlDomainI, err := requireValue(m, "control_domain", "remote")
 	if err != nil {
-		return "", "", 0, 0, err
+		return "", "", 0, 0, 0, err
 	}
 	controlDomain = strings.TrimSpace(fmt.Sprintf("%v", controlDomainI))
 	if v, ok := m["admin_url"]; ok && v != nil {
@@ -305,21 +308,26 @@ func parseRemoteSection(m map[string]interface{}) (controlDomain, adminURL strin
 	}
 	timeoutI, err := requireValue(m, "request_timeout", "remote")
 	if err != nil {
-		return "", "", 0, 0, err
+		return "", "", 0, 0, 0, err
 	}
 	timeout, err = asInt(timeoutI, "remote.request_timeout")
 	if err != nil {
-		return "", "", 0, 0, err
+		return "", "", 0, 0, 0, err
 	}
 	subPortI, err := requireValue(m, "subscription_port", "remote")
 	if err != nil {
-		return "", "", 0, 0, err
+		return "", "", 0, 0, 0, err
 	}
 	subPort, err = asInt(subPortI, "remote.subscription_port")
 	if err != nil {
-		return "", "", 0, 0, err
+		return "", "", 0, 0, 0, err
 	}
-	return controlDomain, adminURL, timeout, subPort, nil
+	if v, ok := m["uuid_cache_ttl"]; ok && v != nil {
+		if ttl, terr := asInt(v, "remote.uuid_cache_ttl"); terr == nil && ttl > 0 {
+			uuidTTL = ttl
+		}
+	}
+	return controlDomain, adminURL, timeout, subPort, uuidTTL, nil
 }
 
 // resolveWebPassword 计算本面板 Web 控制台口令：

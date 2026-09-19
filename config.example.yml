@@ -24,6 +24,8 @@ remote:
   # admin_url: https://example.com/admin/config.json
   request_timeout: 15        # 访问控制端的超时（秒）
   subscription_port: 8443    # 订阅对外端口：写入节点的 port 字段（Worker 监听端口）
+  # uuid_cache_ttl: 86400     # UUID 缓存有效期（秒，缺省 24h）：超龄后台静默刷新，
+  #                            # 刷新失败保留旧值（对齐 _worker.js：凭据不变 UUID 恒定）
 
 # ---- 鉴权与订阅头 ----
 auth:
@@ -168,3 +170,4 @@ gen:
   #   fingerprint: chrome        # chrome|firefox|safari|ios|android|edge|360|qq|random|randomized
   #   ss_cipher: aes-128-gcm     # SS 加密方式（自动模式读取面板 SS.加密方式）
   #   ss_tls: true               # SS TLS（false 时端口映射为 noTLS 组：443→80 等）
+  #   alpn: ""                   # 应用层协议协商（如 "h2,http/1.1"；空 = 不输出；自动模式读取面板 ALPN）

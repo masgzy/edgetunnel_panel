@@ -40,6 +40,7 @@ type GenSettings struct {
 	Fingerprint    string `json:"fingerprint"`
 	SSCipher       string `json:"ss_cipher"` // SS 加密方式（面板 SS.加密方式；缺省 aes-128-gcm）
 	SSTLS          bool   `json:"ss_tls"`    // SS 是否启用 TLS（面板 SS.TLS；false 时端口映射为 noTLS 组）
+	ALPN           string `json:"alpn"`      // 应用层协议协商（如 "h2,http/1.1"；空 = 不输出 alpn 参数）
 
 	// ProxyPath 面板反代路径设置快照（来自面板 config.json 的 PATH 前缀与「反代」节），
 	// 仅在「自动获取配置」且面板可用时注入；不落 config.yml、不参与手动设置，
@@ -154,6 +155,7 @@ func DefaultGenSettings() GenSettings {
 		Fingerprint:    "chrome",
 		SSCipher:       SSCipher,
 		SSTLS:          true,
+		ALPN:           "",
 	}
 }
 
@@ -190,6 +192,7 @@ func (g GenSettings) Normalized() GenSettings {
 
 	out.GRPCUserAgent = strings.TrimSpace(g.GRPCUserAgent)
 	out.SSCipher = strings.TrimSpace(g.SSCipher)
+	out.ALPN = strings.TrimSpace(g.ALPN)
 	if out.SSCipher == "" {
 		out.SSCipher = d.SSCipher
 	}
@@ -375,6 +378,9 @@ func applyGenSection(cfg *RuntimeConfig, data map[string]interface{}) {
 
 	if v, ok := mm["ss_cipher"]; ok {
 		g.SSCipher = fmt.Sprintf("%v", v)
+	}
+	if v, ok := mm["alpn"]; ok {
+		g.ALPN = fmt.Sprintf("%v", v)
 	}
 	if v, ok := mm["ss_tls"]; ok {
 		if b, err := asBool(v, "gen.manual.ss_tls"); err == nil {
