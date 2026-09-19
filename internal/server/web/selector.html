@@ -21,6 +21,11 @@
   </script>
   <link rel="stylesheet" href="/assets/css/fonts.css">
   <link rel="stylesheet" href="/assets/css/m3e.css">
+  <!-- 关键资源预加载：字体/主题/模块依赖并行起跑，缩短登录后首屏等待 -->
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/material-symbols-rounded.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/roboto-flex-latin.woff2" crossorigin>
+  <link rel="preload" as="script" href="/assets/vendor/theme.bundle.js">
+  <link rel="modulepreload" href="/assets/js/m3e.js">
   <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
   <script src="/assets/vendor/theme.bundle.js"></script>
   <link rel="stylesheet" href="/assets/css/selector.css">
@@ -67,6 +72,7 @@
           <span class="badge success" id="countBadge">0 个节点</span>
         </div>
         <div class="toolbar-actions">
+          <button class="btn btn-tonal" id="probeBtn"><span class="material-symbols-rounded">travel_explore</span><span data-i18n="probe_colo">探测区域</span></button>
           <button class="btn btn-tonal" id="refreshBtn"><span class="material-symbols-rounded">refresh</span><span data-i18n="refresh">刷新</span></button>
           <button class="btn btn-outline" id="sortBtn"><span class="material-symbols-rounded">swap_vert</span><span data-i18n="sort">排序</span></button>
         </div>
@@ -80,12 +86,13 @@
               <th data-i18n="th_row_num">行号</th>
               <th data-i18n="th_proxy_ip">ProxyIP</th>
               <th data-i18n="th_yx_ip">优选 IP</th>
+              <th data-i18n="th_colo">区域</th>
               <th data-i18n="th_name">名称</th>
               <th data-i18n="th_actions">操作</th>
             </tr>
           </thead>
           <tbody id="tableBody">
-            <tr><td colspan="5" class="text-center text-on-surface-variant" style="padding:48px;">加载中…</td></tr>
+            <tr><td colspan="6" class="text-center text-on-surface-variant" style="padding:48px;">加载中…</td></tr>
           </tbody>
         </table>
       </div>

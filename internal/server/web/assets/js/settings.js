@@ -18,7 +18,8 @@ async function init() {
   bindSCConfig();
   bindGeneralSettings();
   bindGenSettings();
-  await Promise.all([loadSCConfig(), loadGeneralSettings(), loadGenSettings(), loadConfigFile(), loadLogs()]);
+  bindFullConfig();
+  await Promise.all([loadSCConfig(), loadGeneralSettings(), loadGenSettings(), loadConfigFile(), loadLogs(), loadFullConfig()]);
   connectLogWS();
   // 关于页：版本号从 /api/status 动态取（与 CLI --version 同源），不再硬编码
   try {
@@ -551,4 +552,210 @@ function connectLogWS() {
     };
     logWS.onerror = () => { logWS.close(); };
   } catch (e) {}
+}
+
+// ==================== 完整配置（config.yml 全节结构化设置） ====================
+// 后端 /api/config-sections：GET 返回各节磁盘值；POST 合并保存（校验+备份+热重载）。
+// 面板此前只有 subconverter/订阅端口/生成配置三处图形化设置，其余项都得手改 YAML；
+// 此卡片把 app 之外的常改项全部暴露出来（app.host/port 修改需重启，故只读展示）。
+
+let fcData = null; // GET 结果缓存（by_region 行渲染用）
+
+function bindFullConfig() {
+  document.getElementById('fcReloadBtn').addEventListener('click', loadFullConfig);
+  document.getElementById('fcSaveBtn').addEventListener('click', saveFullConfig);
+}
+
+async function loadFullConfig() {
+  const body = document.getElementById('fcBody');
+  try {
+    fcData = await api('/api/config-sections');
+    fcRender(fcData);
+  } catch (err) {
+    body.innerHTML = `<span class="body-small text-error">${escapeHtml('加载失败：' + err.message)}</span>`;
+  }
+}
+
+// fcText 生成一个填充文本框
+function fcText(id, labelKey, value, attrs = '') {
+  return `
+    <div class="text-field filled">
+      <label for="${id}">${escapeHtml(i18n.t(labelKey))}</label>
+      <input id="${id}" type="text" value="${escapeHtml(value ?? '')}" ${attrs}>
+    </div>`;
+}
+
+// fcNum 数字输入
+function fcNum(id, labelKey, value) {
+  return `
+    <div class="text-field filled">
+      <label for="${id}">${escapeHtml(i18n.t(labelKey))}</label>
+      <input id="${id}" type="number" value="${Number(value) || 0}">
+    </div>`;
+}
+
+// fcSwitch 开关行（m3e-switch 与 genAuto 同款）
+function fcSwitch(id, labelKey, checked) {
+  return `
+    <label class="gen-auto-row text-field">
+      <m3e-switch id="${id}" ${checked ? 'checked' : ''} aria-label="${escapeHtml(i18n.t(labelKey))}"></m3e-switch>
+      <span>${escapeHtml(i18n.t(labelKey))}</span>
+    </label>`;
+}
+
+// fcGroup 分组标题
+function fcGroup(titleKey) {
+  return `<div class="label-large text-primary mt-4" style="margin-bottom:8px;">${escapeHtml(i18n.t(titleKey))}</div>`;
+}
+
+function fcRender(d) {
+  const body = document.getElementById('fcBody');
+  const parts = [];
+
+  // 远程对接
+  parts.push(fcGroup('fc_group_remote'));
+  parts.push(`<div class="flex gap-2" style="flex-wrap:wrap;">`);
+  parts.push(fcText('fcControlDomain', 'fc_control_domain', d.remote.control_domain));
+  parts.push(fcText('fcAdminURL', 'fc_admin_url', d.remote.admin_url));
+  parts.push(fcNum('fcRequestTimeout', 'fc_request_timeout', d.remote.request_timeout));
+  parts.push(fcNum('fcSubPort', 'fc_sub_port', d.remote.subscription_port));
+  parts.push(fcNum('fcUUIDTTL', 'fc_uuid_ttl', d.remote.uuid_cache_ttl));
+  parts.push(`</div>`);
+
+  // 鉴权与口令
+  parts.push(fcGroup('fc_group_auth'));
+  parts.push(`<div class="flex gap-2" style="flex-wrap:wrap;">`);
+  parts.push(fcText('fcLoginPassword', 'fc_login_password', '', 'type="password" autocomplete="new-password" placeholder="' + escapeHtml(i18n.t('fc_leave_empty')) + '"'));
+  parts.push(fcText('fcWebPassword', 'fc_web_password', '', 'type="password" autocomplete="new-password" placeholder="' + escapeHtml(i18n.t('fc_leave_empty')) + '"'));
+  parts.push(fcText('fcUserinfoExpire', 'fc_userinfo_expire', d.auth.userinfo_expire));
+  parts.push(`</div>`);
+  parts.push(fcSwitch('fcWebEmpty', 'fc_web_empty', false));
+
+  // 节点解析
+  parts.push(fcGroup('fc_group_nodes'));
+  parts.push(`
+    <div class="text-field" style="max-width:280px;">
+      <label for="fcBareRole">${escapeHtml(i18n.t('fc_bare_ip_role'))}</label>
+      <select id="fcBareRole">
+        <option value="proxyip" ${d.nodes.bare_ip_role !== 'yxip' ? 'selected' : ''}>proxyip</option>
+        <option value="yxip" ${d.nodes.bare_ip_role === 'yxip' ? 'selected' : ''}>yxip</option>
+      </select>
+    </div>`);
+
+  // 国旗补全
+  parts.push(fcGroup('fc_group_flag'));
+  parts.push(fcSwitch('fcFlagIATA', 'fc_flag_iata', d.flag.iata));
+  parts.push(fcSwitch('fcFlagISO2', 'fc_flag_iso2', d.flag.iso2));
+
+  // ProxyIP 兑底
+  parts.push(fcGroup('fc_group_proxyip'));
+  parts.push(`<div class="flex gap-2" style="flex-wrap:wrap;">`);
+  parts.push(fcText('fcProxyGlobal', 'fc_proxy_global', d.proxyip.global));
+  parts.push(`</div>`);
+  parts.push(fcSwitch('fcProxyDetect', 'fc_proxy_detect', d.proxyip.detect));
+  parts.push(`<div class="label-medium mt-2" style="margin-bottom:6px;">${escapeHtml(i18n.t('fc_by_region'))}</div>`);
+  parts.push(`<div id="fcRegionRows"></div>`);
+  parts.push(`<button class="btn btn-tonal mt-2" id="fcAddRegion"><span class="material-symbols-rounded">add</span>${escapeHtml(i18n.t('fc_add_region'))}</button>`);
+
+  // 文件路径（只读）
+  parts.push(fcGroup('fc_group_files'));
+  parts.push(`<div class="flex gap-2" style="flex-wrap:wrap;">` +
+    Object.entries(d.files || {}).map(([k, v]) =>
+      `<span class="chip"><span>${escapeHtml(k)}</span><span class="chip-sub cell-mono">${escapeHtml(v)}</span></span>`
+    ).join('') + `</div>`);
+
+  // 应用（只读）
+  parts.push(fcGroup('fc_group_app'));
+  parts.push(`<div class="flex gap-2" style="flex-wrap:wrap;">
+    <span class="chip"><span>host</span><span class="chip-sub cell-mono">${escapeHtml(d.app.host)}</span></span>
+    <span class="chip"><span>port</span><span class="chip-sub cell-mono">${escapeHtml(String(d.app.port))}</span></span>
+    <span class="chip"><span>debug</span><span class="chip-sub cell-mono">${d.app.debug ? 'true' : 'false'}</span></span>
+  </div>`);
+
+  body.innerHTML = parts.join('');
+  fcRenderRegions(d.proxyip.by_region || {});
+  document.getElementById('fcAddRegion').addEventListener('click', () => fcAddRegionRow('', ''));
+}
+
+// fcRenderRegions 渲染 by_region 键值行
+function fcRenderRegions(map) {
+  const wrap = document.getElementById('fcRegionRows');
+  wrap.innerHTML = '';
+  Object.entries(map).forEach(([code, val]) => fcAddRegionRow(code, val));
+}
+
+function fcAddRegionRow(code, val) {
+  const wrap = document.getElementById('fcRegionRows');
+  const row = document.createElement('div');
+  row.className = 'flex gap-2 mt-1';
+  row.style.alignItems = 'center';
+  row.innerHTML = `
+    <div class="text-field filled" style="max-width:140px;">
+      <input type="text" class="fc-region-code" placeholder="${escapeHtml(i18n.t('fc_region_code'))}" value="${escapeHtml(code)}" style="text-transform:uppercase;">
+    </div>
+    <div class="text-field filled" style="flex:1;min-width:200px;">
+      <input type="text" class="fc-region-val" placeholder="${escapeHtml(i18n.t('fc_region_value'))}" value="${escapeHtml(val)}">
+    </div>
+    <button class="icon-btn fc-region-del" aria-label="remove"><span class="material-symbols-rounded">close</span></button>`;
+  row.querySelector('.fc-region-del').addEventListener('click', () => row.remove());
+  wrap.appendChild(row);
+}
+
+async function saveFullConfig() {
+  const btn = document.getElementById('fcSaveBtn');
+  btn.disabled = true;
+  try {
+    const d = fcData || {};
+    const payload = {
+      remote: {
+        control_domain: document.getElementById('fcControlDomain').value.trim(),
+        admin_url: document.getElementById('fcAdminURL').value.trim(),
+        request_timeout: parseInt(document.getElementById('fcRequestTimeout').value) || 15,
+        subscription_port: parseInt(document.getElementById('fcSubPort').value) || 8443,
+        uuid_cache_ttl: parseInt(document.getElementById('fcUUIDTTL').value) || 0,
+      },
+      auth: {},
+      nodes: { bare_ip_role: document.getElementById('fcBareRole').value },
+      flag: {
+        iata: document.getElementById('fcFlagIATA').checked,
+        iso2: document.getElementById('fcFlagISO2').checked,
+      },
+      proxyip: {
+        global: document.getElementById('fcProxyGlobal').value.trim(),
+        detect: document.getElementById('fcProxyDetect').checked,
+        by_region: {},
+      },
+    };
+    // 口令：仅在有输入时提交（避免误清）；web_password 勾选清空时提交空串
+    const loginPw = document.getElementById('fcLoginPassword').value;
+    if (loginPw) payload.auth.login_password = loginPw;
+    const webPw = document.getElementById('fcWebPassword').value;
+    const webEmpty = document.getElementById('fcWebEmpty').checked;
+    if (webPw) payload.auth.web_password = webPw;
+    else if (webEmpty) payload.auth.web_password = '';
+    payload.auth.userinfo_expire = document.getElementById('fcUserinfoExpire').value.trim();
+
+    document.querySelectorAll('#fcRegionRows .flex').forEach(row => {
+      const code = row.querySelector('.fc-region-code').value.trim().toUpperCase();
+      const val = row.querySelector('.fc-region-val').value.trim();
+      if (code && val) payload.proxyip.by_region[code] = val;
+    });
+
+    const resp = await api('/api/config-sections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const needRestart = resp.need_restart || [];
+    if (needRestart.length) {
+      toast((i18n.t('t_config_saved_partial') || '已保存，需重启生效：{items}').replace('{items}', needRestart.join(', ')));
+    } else {
+      toast(i18n.t('t_config_hot_ok') || i18n.t('t_config_saved'));
+    }
+    // 重新拉取磁盘值刷新只读 chips 与 by_region 行
+    await loadFullConfig();
+  } catch (err) {
+    ttoast('t_config_save_fail', err.message);
+  }
+  btn.disabled = false;
 }

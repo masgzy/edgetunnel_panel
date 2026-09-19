@@ -34,10 +34,11 @@ async function init() {
   fillACL4SSR();
   bindButtons();
   bindStatusSave();
-  await loadStatus();
+  // 先渲染表单骨架与历史（不依赖网络），再异步加载状态，避免首屏等待串行请求
   updateGenUrl();
   renderHistory();
   restoreFromShare();
+  loadStatus();
   // 每 3 秒刷新统计（只刷 stats，避免重渲染整个状态卡）；
   // 页面切回前台立即刷一次，后台时浏览器节流无妨
   setInterval(refreshStats, 3000);
@@ -50,6 +51,7 @@ async function refreshStats() {
   try {
     const st = await api('/api/status');
     renderStats(st.stats || {});
+    renderUsage(st.usage);
   } catch { /* 静默 */ }
 }
 if (document.readyState === 'loading') {
@@ -103,6 +105,7 @@ async function loadStatus() {
     renderDataSources(rt.data_sources || []);
     // 调用统计
     renderStats(st.stats || {});
+    renderUsage(st.usage);
   } catch {
     document.getElementById('kvSc').textContent = '—';
   }
@@ -121,6 +124,28 @@ function renderStats(st) {
   } else if (st.uptime != null) {
     sub.textContent = `已运行 ${formatUptime(st.uptime)}`;
   }
+}
+
+// formatCount 千分位（CF 用量展示与在线版面板一致）
+function formatCount(n) {
+  return Number(n || 0).toLocaleString('en-US');
+}
+
+// renderUsage 渲染 CF 今日请求数（与在线版 edt 面板同源数据：Pages + Workers 调用量）
+function renderUsage(usage) {
+  const el = document.getElementById('statUsage');
+  if (!usage || (usage.total == null && usage.max == null)) {
+    el.textContent = '—';
+    el.title = i18n.t('usage_unavailable');
+    return;
+  }
+  const total = Number(usage.total || 0);
+  const max = Number(usage.max || 0);
+  el.textContent = max > 0 ? `${formatCount(total)} / ${formatCount(max)}` : formatCount(total);
+  const pct = max > 0 ? Math.min(100, (total / max) * 100).toFixed(1) : null;
+  el.title = pct != null
+    ? i18n.t('usage_tooltip_pct').replace('{pct}', pct)
+    : i18n.t('usage_tooltip');
 }
 
 function setStatValue(id, val) {
@@ -269,6 +294,10 @@ function bindButtons() {
   });
   document.getElementById('qrBtn').addEventListener('click', toggleQR);
   document.getElementById('shareBtn').addEventListener('click', shareSubscription);
+  // 一键导入：按当前输出格式拼客户端深链（对齐在线版 edt 面板的一键导入能力）
+  document.querySelectorAll('#importBtns .import-btn').forEach(btn => {
+    btn.addEventListener('click', () => importDeepLink(btn.dataset.import));
+  });
   document.getElementById('clearHistoryBtn').addEventListener('click', async () => {
     const list = getHistory();
     if (list.length === 0) return ttoast('t_no_history');
@@ -380,6 +409,35 @@ function renderHistory() {
   el.querySelectorAll('[data-act="open"]').forEach(b => {
     b.addEventListener('click', () => window.open(b.dataset.url, '_blank'));
   });
+}
+
+// 一键导入：按当前输出格式把订阅交给对应客户端深链拉起
+//   vless 原生订阅 → v2rayNG / Shadowrocket / sing-box
+//   mihomo/clash/其他（subconverter） → Clash 系
+// 仅依赖当前 genUrl（与复制/下载同一数据源），不额外请求后端。
+function importDeepLink(kind) {
+  const raw = document.getElementById('genUrl').value;
+  if (!raw) return ttoast('t_no_param');
+  const full = new URL(raw, location.origin + location.pathname).href;
+  const enc = encodeURIComponent(full);
+  const b64 = btoa(full);
+  const fmt = document.getElementById('genFormat').value;
+  let scheme = '';
+  if (kind === 'v2rayng') {
+    if (fmt === 'vless') scheme = `v2rayng://install-sub?url=${enc}&remark=edt_panel`;
+    else return ttoast('t_import_need_vless');
+  } else if (kind === 'clash') {
+    if (fmt === 'vless') return ttoast('t_import_need_sub');
+    scheme = `clash://install-config?url=${enc}&name=edt_panel`;
+  } else if (kind === 'shadowrocket') {
+    if (fmt === 'vless') scheme = `sub://${btoa(full)}`;
+    else return ttoast('t_import_need_sub');
+  } else if (kind === 'singbox') {
+    if (fmt === 'vless') scheme = `sing-box://import-remote-profile?url=${enc}#edt_panel`;
+    else return ttoast('t_import_need_vless');
+  }
+  if (!scheme) return ttoast('t_no_param');
+  window.location.href = scheme;
 }
 
 function toggleQR() {

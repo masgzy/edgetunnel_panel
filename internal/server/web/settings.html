@@ -21,6 +21,11 @@
   </script>
   <link rel="stylesheet" href="/assets/css/fonts.css">
   <link rel="stylesheet" href="/assets/css/m3e.css">
+  <!-- 关键资源预加载：字体/主题/模块依赖并行起跑，缩短登录后首屏等待 -->
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/material-symbols-rounded.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/roboto-flex-latin.woff2" crossorigin>
+  <link rel="preload" as="script" href="/assets/vendor/theme.bundle.js">
+  <link rel="modulepreload" href="/assets/js/m3e.js">
   <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
   <script src="/assets/vendor/theme.bundle.js"></script>
   <link rel="stylesheet" href="/assets/css/settings.css">
@@ -72,6 +77,24 @@
               <span class="material-symbols-rounded">restart_alt</span><span data-i18n="theme_reset">默认</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- 完整配置（config.yml 全节结构化设置） -->
+      <div class="card outlined fade-in" id="fullConfigCard">
+        <div class="card-header">
+          <div class="icon-leading"><span class="material-symbols-rounded">tune</span></div>
+          <div class="titles">
+            <div class="title" data-i18n="full_config">完整配置</div>
+            <div class="subtitle" data-i18n="full_config_subtitle">config.yml 全部设置项，保存后热重载</div>
+          </div>
+          <button class="icon-btn" id="fcReloadBtn" aria-label="重新读取" title="重新读取"><span class="material-symbols-rounded">refresh</span></button>
+        </div>
+        <div id="fcBody">
+          <span class="body-small text-on-surface-variant">加载中…</span>
+        </div>
+        <div class="card-actions mt-4">
+          <button class="btn btn-filled" id="fcSaveBtn"><span class="material-symbols-rounded">save</span><span data-i18n="save">保存</span></button>
         </div>
       </div>
 

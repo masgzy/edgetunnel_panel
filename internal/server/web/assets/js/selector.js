@@ -6,6 +6,8 @@ let isSortMode = false;
 let selectedRow = null;
 let currentPre = '';
 let currentIp = '';
+// coloMap 优选 IP -> 三字码（cfcolo）缓存；点「探测区域」后填充并渲染
+const coloMap = new Map();
 
 async function init() {
   injectAppBar(i18n.t('selector_title'));
@@ -56,13 +58,14 @@ function renderTable() {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
   if (data.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-on-surface-variant" style="padding:48px;">${i18n.t('empty_no_nodes_selector')}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-on-surface-variant" style="padding:48px;">${i18n.t('empty_no_nodes_selector')}</td></tr>`;
     return;
   }
   data.forEach((item, idx) => {
     const line = idx + 1;
     const ipToUse = item.yx_ip || item.ip;
     const isCurrent = ipToUse && ipToUse === currentIp;
+    const colo = coloMap.get(ipToUse);
     const tr = document.createElement('tr');
     tr.dataset.line = line;
     if (isCurrent) tr.classList.add('current-row');
@@ -70,6 +73,7 @@ function renderTable() {
       <td data-label="${i18n.t('row_num')}" class="row-num">${line}</td>
       <td data-label="${i18n.t('proxy_ip')}" class="cell-mono">${escapeHtml(item.ip || 'DIRECT')}</td>
       <td data-label="${i18n.t('yx_ip')}" class="cell-mono">${escapeHtml(item.yx_ip || '-')}</td>
+      <td data-label="${i18n.t('th_colo')}" class="colo-cell">${colo ? `<span class="badge success">${escapeHtml(colo)}</span>` : '<span class="text-on-surface-variant">—</span>'}</td>
       <td data-label="${i18n.t('name')}">${escapeHtml(item.name)}</td>
       <td data-label="${i18n.t('actions')}" class="action-cell">
         <button class="action-btn select ${isCurrent ? 'active' : ''}" data-act="select" ${isSortMode ? 'disabled' : ''} title="${i18n.t('set_current')}">
@@ -103,6 +107,45 @@ function bindButtons() {
     if (ok1 && ok2) ttoast('t_refreshed');
   });
   document.getElementById('sortBtn').addEventListener('click', toggleSort);
+  // 探测区域：对全部行的优选 IP 提前发起 cdn-cgi/trace 探测并显示三字码
+  // （无需等订阅请求，分区域 ProxyIP 兑底所依赖的区域码一目了然）
+  document.getElementById('probeBtn').addEventListener('click', probeColo);
+}
+
+// probeColo 批量探测优选 IP 的 cfcolo（后端并发 8、进程内缓存 1h）
+async function probeColo() {
+  const btn = document.getElementById('probeBtn');
+  if (btn.disabled) return;
+  const hosts = [...new Set(
+    data.map(it => (it.yx_ip || it.ip || '').trim())
+        .filter(h => h && h !== 'DIRECT')
+  )];
+  if (hosts.length === 0) return ttoast('t_no_ip_node');
+  btn.disabled = true;
+  const label = btn.querySelector('span:last-child');
+  const original = label.textContent;
+  label.textContent = i18n.t('t_probe_running');
+  try {
+    const resp = await api('/api/probe-colo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hosts }),
+    });
+    let hit = 0;
+    (resp.results || []).forEach(r => {
+      if (r.code) {
+        coloMap.set(r.host, r.code);
+        hit++;
+      }
+    });
+    renderTable();
+    if (hit > 0) toast(i18n.t('colo_hint') + ` (${hit}/${hosts.length})`);
+    else toast(i18n.t('t_probe_none'));
+  } catch (err) {
+    ttoast('t_probe_fail', apiError(err));
+  }
+  btn.disabled = false;
+  label.textContent = original;
 }
 
 async function selectIp(line) {

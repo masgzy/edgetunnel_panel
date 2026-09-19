@@ -21,6 +21,11 @@
   </script>
   <link rel="stylesheet" href="/assets/css/fonts.css">
   <link rel="stylesheet" href="/assets/css/m3e.css">
+  <!-- 关键资源预加载：字体/主题/模块依赖并行起跑，缩短登录后首屏等待 -->
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/material-symbols-rounded.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/roboto-flex-latin.woff2" crossorigin>
+  <link rel="preload" as="script" href="/assets/vendor/theme.bundle.js">
+  <link rel="modulepreload" href="/assets/js/m3e.js">
   <!-- 动态色彩：须在 m3e.css 之后加载，确保生成的色板在级联中胜出 -->
   <script src="/assets/vendor/theme.bundle.js"></script>
   <link rel="stylesheet" href="/assets/css/index.css">
@@ -169,6 +174,10 @@
           <div class="stat-item">
             <div class="stat-value" id="statGetUUID">0</div>
             <div class="stat-label" data-i18n="stat_item_getuuid">UUID 查询</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="statUsage">—</div>
+            <div class="stat-label" data-i18n="stat_item_usage">CF 今日请求</div>
           </div>
           <div class="stat-item">
             <div class="stat-value" id="statUptime">0s</div>
@@ -326,6 +335,13 @@
             <button class="btn btn-outline" id="downloadUrlBtn"><span class="material-symbols-rounded">download</span><span data-i18n="download">下载</span></button>
             <button class="btn btn-outline" id="shareBtn"><span class="material-symbols-rounded">share</span><span data-i18n="share">分享</span></button>
             <button class="btn btn-outline" id="qrBtn"><span class="material-symbols-rounded">qr_code_2</span><span data-i18n="qr_code">二维码</span></button>
+          </div>
+          <div class="flex gap-2 mt-2" style="flex-wrap:wrap;" id="importBtns">
+            <span class="body-small text-on-surface-variant" style="align-self:center;" data-i18n="one_click_import">一键导入</span>
+            <button class="btn btn-outline import-btn" data-import="v2rayng"><span class="material-symbols-rounded">rocket_launch</span>v2rayNG</button>
+            <button class="btn btn-outline import-btn" data-import="clash"><span class="material-symbols-rounded">bolt</span>Clash</button>
+            <button class="btn btn-outline import-btn" data-import="shadowrocket"><span class="material-symbols-rounded">flight_takeoff</span>Shadowrocket</button>
+            <button class="btn btn-outline import-btn" data-import="singbox"><span class="material-symbols-rounded">deployed_code</span>sing-box</button>
           </div>
           <div class="sc-hint body-small text-on-surface-variant mt-2 hidden" id="scHint">
             <span class="material-symbols-rounded" style="font-size:16px;vertical-align:middle;">info</span>
