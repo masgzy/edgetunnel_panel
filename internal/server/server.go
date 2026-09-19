@@ -132,28 +132,30 @@ func registerPageRoutes(mux *http.ServeMux, staticFS fs.FS, deps *Deps) {
 // registerAPIRoutes 注册全部 JSON/订阅 API 端点。
 func registerAPIRoutes(mux *http.ServeMux, deps *Deps) {
 	routes := map[string]http.HandlerFunc{
-		"/config":           deps.configHandler,
-		"/clearuuid":        deps.clearUUIDHandler,
-		"/getip":            deps.getIPHandler,
-		"/getdomain":        deps.getDomainHandler,
-		"/getuuid":          deps.getUUIDHandler,
-		"/sub":              deps.subHandler,
-		"/mihomo":           deps.mihomoHandler,
-		"/convert":          deps.convertHandler,
-		"/api/status":       deps.statusHandler,
-		"/api/preip":        deps.preIPHandler,
-		"/api/import":       deps.importHandler,
-		"/api/export":       deps.exportHandler,
-		"/api/configfile":   deps.configFileHandler,
-		"/api/batch_delete": deps.batchDeleteHandler,
-		"/api/backup":       deps.backupHandler,
-		"/api/sc-config":    deps.scConfigHandler,
-		"/api/sc-install":   deps.scInstallHandler,
-		"/api/settings":     deps.settingsHandler,
-		"/api/gen":          deps.genHandler,
-		"/api/restore":      deps.restoreHandler,
-		"/api/logs":         deps.logsHandler,
-		"/api/restart":      deps.restartHandler,
+		"/config":              deps.configHandler,
+		"/clearuuid":           deps.clearUUIDHandler,
+		"/getip":               deps.getIPHandler,
+		"/getdomain":           deps.getDomainHandler,
+		"/getuuid":             deps.getUUIDHandler,
+		"/sub":                 deps.subHandler,
+		"/mihomo":              deps.mihomoHandler,
+		"/convert":             deps.convertHandler,
+		"/api/status":          deps.statusHandler,
+		"/api/probe-colo":      deps.probeColoHandler,
+		"/api/config-sections": deps.configSectionsHandler,
+		"/api/preip":           deps.preIPHandler,
+		"/api/import":          deps.importHandler,
+		"/api/export":          deps.exportHandler,
+		"/api/configfile":      deps.configFileHandler,
+		"/api/batch_delete":    deps.batchDeleteHandler,
+		"/api/backup":          deps.backupHandler,
+		"/api/sc-config":       deps.scConfigHandler,
+		"/api/sc-install":      deps.scInstallHandler,
+		"/api/settings":        deps.settingsHandler,
+		"/api/gen":             deps.genHandler,
+		"/api/restore":         deps.restoreHandler,
+		"/api/logs":            deps.logsHandler,
+		"/api/restart":         deps.restartHandler,
 	}
 	for path, h := range routes {
 		mux.HandleFunc(path, h)
@@ -507,15 +509,443 @@ func (d *Deps) convertHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, body)
 }
 
-// statusHandler /api/status - 供前端查询服务状态（含 subconverter + runtime + stats 信息）
+// statusHandler /api/status - 供前端查询服务状态（含 subconverter + runtime + stats 信息）。
+// 附带 CF 用量（在线版面板同源请求数）与 UUID 缓存元信息；两者均可为空（未拉取过）。
+// no-store：前端 3s 轮询 + 登录态实时性，禁止任何中间缓存。
 func (d *Deps) statusHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	status := map[string]interface{}{
 		"subconverter": d.SubscriptionSvc.SubConverterStatus(),
 		"runtime":      d.SubscriptionSvc.RuntimeStatus(),
 		"stats":        d.Stats.Snapshot(),
 		"version":      d.Version,
 	}
+	if cf, ok := d.UUIDService.UsageSnapshot(); ok {
+		status["usage"] = map[string]interface{}{
+			"pages":   cf.Pages,
+			"workers": cf.Workers,
+			"total":   cf.Pages + cf.Workers,
+			"max":     cf.Max,
+		}
+	}
+	if info, ok := d.UUIDService.Info(); ok {
+		status["uuid"] = info
+	}
 	writeJSON(w, http.StatusOK, status)
+}
+
+// probeColoCache 优选 IP 区域码探测结果缓存：host -> {code, at}。
+// 与订阅构建侧（SubscriptionService.detectColo）独立：此处供面板主动探测显示，
+// 命中结果 1 小时内直接复用，避免重复外呼。
+var probeColoCache = struct {
+	sync.Mutex
+	m map[string]probeColoEntry
+}{m: map[string]probeColoEntry{}}
+
+type probeColoEntry struct {
+	code string
+	at   time.Time
+}
+
+// probeColoCacheTTL 探测结果缓存有效期。
+const probeColoCacheTTL = time.Hour
+
+// probeColoConc 单次探测请求的并发上限。
+const probeColoConc = 8
+
+// probeColoHandler POST /api/probe-colo —— 面板主动探测优选 IP 的三字码（cfcolo）。
+// 请求体 JSON: {"hosts":["1.2.3.4", ...]}
+// 响应: {"results":[{"host":"1.2.3.4","code":"HKG"}]}
+// 不改变任何数据文件，仅用于「优选 IP」页提前显示区域码（订阅构建时的
+// 分区域 ProxyIP 兑底另有自己的探测缓存）。
+func (d *Deps) probeColoHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "POST method only")
+		return
+	}
+	var req struct {
+		Hosts []string `json:"hosts"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "解析请求失败: "+err.Error())
+		return
+	}
+	// 去重 + 清理，限制单次探测数量防滥用
+	seen := map[string]bool{}
+	hosts := make([]string, 0, len(req.Hosts))
+	for _, h := range req.Hosts {
+		h = strings.TrimSpace(h)
+		if h == "" || h == "DIRECT" || seen[h] {
+			continue
+		}
+		seen[h] = true
+		hosts = append(hosts, h)
+		if len(hosts) >= 128 {
+			break
+		}
+	}
+
+	type probeResult struct {
+		Host string `json:"host"`
+		Code string `json:"code"`
+	}
+	results := make([]probeResult, len(hosts))
+
+	probeColoCache.Lock()
+	// 缓存过期条目顺手清理
+	for k, e := range probeColoCache.m {
+		if time.Since(e.at) > probeColoCacheTTL {
+			delete(probeColoCache.m, k)
+		}
+	}
+	probeColoCache.Unlock()
+
+	sem := make(chan struct{}, probeColoConc)
+	var wg sync.WaitGroup
+	for i, host := range hosts {
+		wg.Add(1)
+		go func(i int, host string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			probeColoCache.Lock()
+			if e, ok := probeColoCache.m[host]; ok {
+				probeColoCache.Unlock()
+				results[i] = probeResult{Host: host, Code: e.code}
+				return
+			}
+			probeColoCache.Unlock()
+
+			code := module.FetchCfColo(host)
+			if code != "" {
+				probeColoCache.Lock()
+				probeColoCache.m[host] = probeColoEntry{code: code, at: time.Now()}
+				probeColoCache.Unlock()
+			}
+			results[i] = probeResult{Host: host, Code: code}
+		}(i, host)
+	}
+	wg.Wait()
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"results": results})
+}
+
+// ----- 面板内完整配置设置（config.yml 各节结构化编辑） -----
+
+// configSectionsGET 各节当前磁盘值（宽松提取：缺失/非法字段回落默认）。
+type configSectionsGET struct {
+	App struct {
+		Host  string `json:"host"`
+		Port  int    `json:"port"`
+		Debug bool   `json:"debug"`
+	} `json:"app"`
+	Remote struct {
+		ControlDomain    string `json:"control_domain"`
+		AdminURL         string `json:"admin_url"`
+		RequestTimeout   int    `json:"request_timeout"`
+		SubscriptionPort int    `json:"subscription_port"`
+		UUIDCacheTTL     int    `json:"uuid_cache_ttl"`
+	} `json:"remote"`
+	Auth struct {
+		LoginPassword  string `json:"login_password"`
+		WebPassword    string `json:"web_password"`
+		UserinfoExpire string `json:"userinfo_expire"`
+	} `json:"auth"`
+	Files map[string]string `json:"files"`
+	Nodes struct {
+		BareIPRole string `json:"bare_ip_role"`
+	} `json:"nodes"`
+	Flag struct {
+		IATA bool `json:"iata"`
+		ISO2 bool `json:"iso2"`
+	} `json:"flag"`
+	ProxyIP struct {
+		Global   string            `json:"global"`
+		Detect   bool              `json:"detect"`
+		ByRegion map[string]string `json:"by_region"`
+	} `json:"proxyip"`
+}
+
+// configSectionsHandler GET/POST /api/config-sections —— 面板内结构化设置 config.yml 全部节。
+//
+// GET：返回 app/remote/auth/files/nodes/flag/proxyip 各节当前值；
+// POST：把提交的字段合并进 config.yml 对应节（仅覆盖提交项，其余不动），
+// 写盘前先经与启动加载同一套解析器完整校验（校验失败拒绝写盘），
+// 通过后备份并原子替换，随后热重载运行时配置；
+// 无法热生效的项（app.host/port/debug）在 need_restart 中返回。
+func (d *Deps) configSectionsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		d.configSectionsGet(w, r)
+		return
+	}
+	var req struct {
+		Remote *struct {
+			ControlDomain    *string `json:"control_domain"`
+			AdminURL         *string `json:"admin_url"`
+			RequestTimeout   *int    `json:"request_timeout"`
+			SubscriptionPort *int    `json:"subscription_port"`
+			UUIDCacheTTL     *int    `json:"uuid_cache_ttl"`
+		} `json:"remote"`
+		Auth *struct {
+			LoginPassword  *string `json:"login_password"`
+			WebPassword    *string `json:"web_password"`
+			UserinfoExpire *string `json:"userinfo_expire"`
+		} `json:"auth"`
+		Nodes *struct {
+			BareIPRole *string `json:"bare_ip_role"`
+		} `json:"nodes"`
+		Flag *struct {
+			IATA *bool `json:"iata"`
+			ISO2 *bool `json:"iso2"`
+		} `json:"flag"`
+		ProxyIP *struct {
+			Global   *string            `json:"global"`
+			Detect   *bool              `json:"detect"`
+			ByRegion *map[string]string `json:"by_region"`
+		} `json:"proxyip"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "解析请求失败: "+err.Error())
+		return
+	}
+
+	configPath, _, cfgMap, err := d.readConfigYAMLMap()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	ensureSection := func(key string) map[string]interface{} {
+		m, _ := cfgMap[key].(map[string]interface{})
+		if m == nil {
+			m = map[string]interface{}{}
+		}
+		return m
+	}
+
+	if req.Remote != nil {
+		m := ensureSection("remote")
+		if req.Remote.ControlDomain != nil {
+			if v := strings.TrimSpace(*req.Remote.ControlDomain); v != "" {
+				m["control_domain"] = v
+			}
+		}
+		if req.Remote.AdminURL != nil {
+			m["admin_url"] = strings.TrimSpace(*req.Remote.AdminURL) // 空串回落自动拼接
+		}
+		if req.Remote.RequestTimeout != nil && *req.Remote.RequestTimeout > 0 {
+			m["request_timeout"] = *req.Remote.RequestTimeout
+		}
+		if req.Remote.SubscriptionPort != nil && *req.Remote.SubscriptionPort > 0 {
+			m["subscription_port"] = *req.Remote.SubscriptionPort
+		}
+		if req.Remote.UUIDCacheTTL != nil {
+			m["uuid_cache_ttl"] = *req.Remote.UUIDCacheTTL // <=0 表示用缺省
+		}
+		cfgMap["remote"] = m
+	}
+	if req.Auth != nil {
+		m := ensureSection("auth")
+		if req.Auth.LoginPassword != nil {
+			if v := *req.Auth.LoginPassword; strings.TrimSpace(v) != "" {
+				m["login_password"] = v
+			}
+		}
+		if req.Auth.WebPassword != nil {
+			// 空串合法：显式关闭 Web 控制台鉴权
+			m["web_password"] = *req.Auth.WebPassword
+		}
+		if req.Auth.UserinfoExpire != nil {
+			m["userinfo_expire"] = strings.TrimSpace(*req.Auth.UserinfoExpire)
+		}
+		cfgMap["auth"] = m
+	}
+	if req.Nodes != nil && req.Nodes.BareIPRole != nil {
+		role := strings.ToLower(strings.TrimSpace(*req.Nodes.BareIPRole))
+		if role != "" {
+			m := ensureSection("nodes")
+			m["bare_ip_role"] = role
+			cfgMap["nodes"] = m
+		}
+	}
+	if req.Flag != nil {
+		m := ensureSection("flag")
+		if req.Flag.IATA != nil {
+			m["iata"] = *req.Flag.IATA
+		}
+		if req.Flag.ISO2 != nil {
+			m["iso2"] = *req.Flag.ISO2
+		}
+		cfgMap["flag"] = m
+	}
+	if req.ProxyIP != nil {
+		m := ensureSection("proxyip")
+		if req.ProxyIP.Global != nil {
+			m["global"] = strings.TrimSpace(*req.ProxyIP.Global)
+		}
+		if req.ProxyIP.Detect != nil {
+			m["detect"] = *req.ProxyIP.Detect
+		}
+		if req.ProxyIP.ByRegion != nil {
+			byRegion := map[string]interface{}{}
+			for code, val := range *req.ProxyIP.ByRegion {
+				code = strings.ToUpper(strings.TrimSpace(code))
+				val = strings.TrimSpace(val)
+				if code != "" && val != "" {
+					byRegion[code] = val
+				}
+			}
+			m["by_region"] = byRegion
+		}
+		cfgMap["proxyip"] = m
+	}
+
+	// 写临时文件 → 完整校验 → 备份 → 原子替换 → 热重载（与 configfile 保存同链路）
+	nextPath := configPath + ".next"
+	out, err := yaml.Marshal(cfgMap)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := os.WriteFile(nextPath, out, 0o644); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	newCfg, err := config.LoadFrom(d.Cfg.RootDir, "config.yml.next")
+	if err != nil {
+		_ = os.Remove(nextPath)
+		writeJSONError(w, http.StatusBadRequest, "配置校验失败: "+err.Error())
+		return
+	}
+	if old, rerr := os.ReadFile(configPath); rerr == nil {
+		_ = os.WriteFile(configPath+".bak", old, 0o644)
+	}
+	if err := os.Rename(nextPath, configPath); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	LogLine("config.yml 各节设置已更新，开始热重载")
+
+	reloaded := []string{}
+	if d.ReloadServices != nil {
+		if items, rerr := d.ReloadServices(newCfg); rerr != nil {
+			LogLine("config 热重载部分失败: %v", rerr)
+		} else {
+			reloaded = items
+		}
+	}
+	if newCfg.WebPassword != d.Cfg.WebPassword && d.auth != nil {
+		d.auth.SetPassword(newCfg.WebPassword)
+		reloaded = append(reloaded, "控制台登录口令（旧会话已全部失效）")
+	}
+	needRestart := []string{}
+	if newCfg.Host != d.Cfg.Host {
+		needRestart = append(needRestart, "app.host")
+	}
+	if newCfg.Port != d.Cfg.Port {
+		needRestart = append(needRestart, "app.port")
+	}
+	if newCfg.Debug != d.Cfg.Debug {
+		needRestart = append(needRestart, "app.debug")
+	}
+	d.Cfg = newCfg
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":      "saved",
+		"reloaded":     reloaded,
+		"need_restart": needRestart,
+	})
+}
+
+// configSectionsGet 返回各节当前磁盘值（宽松提取，缺失回落默认）。
+func (d *Deps) configSectionsGet(w http.ResponseWriter, r *http.Request) {
+	_, _, cfgMap, err := d.readConfigYAMLMap()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var out configSectionsGET
+
+	str := func(section, key, def string) string {
+		m, _ := cfgMap[section].(map[string]interface{})
+		if m == nil {
+			return def
+		}
+		if v, ok := m[key]; ok && v != nil {
+			s := strings.TrimSpace(fmt.Sprintf("%v", v))
+			if s != "" {
+				return s
+			}
+		}
+		return def
+	}
+	num := func(section, key string, def int) int {
+		m, _ := cfgMap[section].(map[string]interface{})
+		if m == nil {
+			return def
+		}
+		if v, ok := m[key]; ok && v != nil {
+			if n, err := strconv.Atoi(strings.TrimSpace(fmt.Sprintf("%v", v))); err == nil {
+				return n
+			}
+		}
+		return def
+	}
+	bl := func(section, key string, def bool) bool {
+		m, _ := cfgMap[section].(map[string]interface{})
+		if m == nil {
+			return def
+		}
+		if v, ok := m[key]; ok && v != nil {
+			if b, err := yamlToBool(v); err == nil {
+				return b
+			}
+		}
+		return def
+	}
+
+	out.App.Host = str("app", "host", "0.0.0.0")
+	out.App.Port = num("app", "port", 8080)
+	out.App.Debug = bl("app", "debug", false)
+
+	out.Remote.ControlDomain = str("remote", "control_domain", "")
+	out.Remote.AdminURL = str("remote", "admin_url", "")
+	out.Remote.RequestTimeout = num("remote", "request_timeout", 15)
+	out.Remote.SubscriptionPort = num("remote", "subscription_port", 8443)
+	out.Remote.UUIDCacheTTL = num("remote", "uuid_cache_ttl", 86400)
+
+	out.Auth.LoginPassword = str("auth", "login_password", "")
+	out.Auth.WebPassword = str("auth", "web_password", "")
+	out.Auth.UserinfoExpire = str("auth", "userinfo_expire", "2030-01-01 00:00:00+08:00")
+
+	out.Files = map[string]string{
+		"vless_file":      str("files", "vless_file", "data/vless.txt"),
+		"result_file":     str("files", "result_file", "data/result.csv"),
+		"run_time_file":   str("files", "run_time_file", "data/run_time.txt"),
+		"auth_cache_file": str("files", "auth_cache_file", "data/auth.txt"),
+	}
+
+	out.Nodes.BareIPRole = str("nodes", "bare_ip_role", "proxyip")
+	out.Flag.IATA = bl("flag", "iata", true)
+	out.Flag.ISO2 = bl("flag", "iso2", false)
+	out.ProxyIP.Global = str("proxyip", "global", "")
+	out.ProxyIP.Detect = bl("proxyip", "detect", false)
+	out.ProxyIP.ByRegion = map[string]string{}
+	if rawMap, ok := cfgMap["proxyip"].(map[string]interface{}); ok {
+		if regions, ok := rawMap["by_region"].(map[string]interface{}); ok {
+			for code, val := range regions {
+				code = strings.ToUpper(strings.TrimSpace(code))
+				if code == "" || val == nil {
+					continue
+				}
+				if v := strings.TrimSpace(fmt.Sprintf("%v", val)); v != "" {
+					out.ProxyIP.ByRegion[code] = v
+				}
+			}
+		}
+	}
+
+	writeJSON(w, http.StatusOK, out)
 }
 
 // preIPHandler /api/preip?type=get|set - 优选 IP 读写（原 /pre_ip 的 API 部分）
@@ -972,6 +1402,7 @@ func (d *Deps) genSave(w http.ResponseWriter, r *http.Request) {
 			"fingerprint":      currentManual.Fingerprint,
 			"ss_cipher":        currentManual.SSCipher,
 			"ss_tls":           currentManual.SSTLS,
+			"alpn":             currentManual.ALPN,
 		},
 	}
 	cfgMap["gen"] = section
@@ -1036,6 +1467,7 @@ func readGenSectionFromMap(cfgMap map[string]interface{}) (auto, aggregate bool,
 	str("ech_sni", &gs.ECHSNI)
 	str("fragment", &gs.Fragment)
 	str("fingerprint", &gs.Fingerprint)
+	str("alpn", &gs.ALPN)
 	bl("skip_cert_verify", &gs.SkipCertVerify)
 	bl("enable_0rtt", &gs.Enable0RTT)
 	bl("random_path", &gs.RandomPath)
@@ -1391,9 +1823,16 @@ func serveStatic(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("ETag", etag)
-	if strings.HasPrefix(name, "assets/vendor/") {
+	// 缓存分层（缩短高 RTT 网络下登录后的首屏等待）：
+	//   vendor / 字体 → immutable 一年（内容变更靠 fonts.css 的 ?v=N 查询参数失效）；
+	//   其余 css/js   → 1h + must-revalidate（1h 内零请求往返，过期后 ETag 协商）；
+	//   页面/manifest/sw.js → no-cache（每次协商，保证 HTML 与 SW 版本及时更新）。
+	switch {
+	case strings.HasPrefix(name, "assets/vendor/"), strings.HasPrefix(name, "assets/fonts/"):
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-	} else {
+	case strings.HasPrefix(name, "assets/"):
+		w.Header().Set("Cache-Control", "public, max-age=3600, must-revalidate")
+	default:
 		w.Header().Set("Cache-Control", "no-cache")
 	}
 	if inm := r.Header.Get("If-None-Match"); inm != "" && etagMatch(inm, etag) {
