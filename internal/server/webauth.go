@@ -323,6 +323,10 @@ func loginPageHTML(next string, errMsg string) string {
 </script>
 <link rel="stylesheet" href="/assets/css/fonts.css">
 <link rel="stylesheet" href="/assets/css/m3e.css">
+<!-- 关键资源预加载：字体/主题并行起跑（与主界面同款优化） -->
+<link rel="preload" as="font" type="font/woff2" href="/assets/fonts/material-symbols-rounded.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/assets/fonts/roboto-flex-latin.woff2" crossorigin>
+<link rel="preload" as="script" href="/assets/vendor/theme.bundle.js">
 <!-- 动态色彩：须在 m3e.css 之后加载，确保自定义 seed 色板生效 -->
 <script src="/assets/vendor/theme.bundle.js"></script>
 <style>

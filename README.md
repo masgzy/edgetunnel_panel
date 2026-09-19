@@ -58,12 +58,16 @@ edt_panel 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudfla
 **优选 IP**
 - 内置优选 IP 列表管理：点选设为当前生效、排序模式、自定义优选条目
 - 与订阅生成联动：优选结果自动参与节点生成
+- 提前探测区域码：一键批量 cdn-cgi/trace 探测每个优选 IP 的 cfcolo（三字码）
+  并在列表中展示，无需等订阅请求
 
 **订阅生成**
 - 多订阅模板（profiles）：不同域名、UUID 模式（动态 / 静态）、输出格式并存
-- UUID 动态模式对接远程面板每日刷新；支持一键清空重置
+- UUID 动态模式对接远程面板：启动即后台预热 + 磁盘持久化缓存（重启零等待）、
+  超龄后台静默刷新不阻塞请求（对齐 _worker.js 凭据派生语义，刷新失败保留旧值）；
+  支持一键清空重置
 - 生成配置：协议（VLESS / Trojan / Shadowsocks）与连接参数（传输、证书校验、
-  0-RTT、TLS 分片、随机伪装路径、ECH、浏览器指纹）可自动读取面板 config.json
+  0-RTT、TLS 分片、随机伪装路径、ECH、ALPN、浏览器指纹）可自动读取面板 config.json
   或手动设置
 - 名称自动补国旗：按名称里的机场三字码（HKG/ICN/LAX…）或二字码（HK/US…）
   识别区域并补旗，TW 区域码按约定使用中国🇨🇳旗帜；开关独立可配
@@ -72,6 +76,7 @@ edt_panel 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudfla
 - 裸行角色可配：`vless.txt` 无 `@` 的行可整体指定为 ProxyIP 或优选 IP，
   免去只有优选 IP 时逐行输 `@`
 - 二维码展示订阅链接，手机扫码即用
+- 一键导入：v2rayNG / Clash / Shadowrocket / sing-box 客户端深链拉起
 - mihomo（Clash Meta）配置生成：内置模板 + ACL4SSR ini 解析（ruleset / custom_proxy_group）
 - 订阅访问历史记录
 
@@ -87,6 +92,9 @@ edt_panel 为 [cmliu/edgetunnel](https://github.com/cmliu/edgetunnel)（Cloudfla
 - PWA：可安装到主屏，资源 ETag + gzip 高效缓存
 - 备份 / 恢复：一键打包 `data/` 目录为 zip 下载，或上传 zip 恢复（含路径穿越防护）
 - 设置页内置 config.yml 编辑器与运行日志查看器（WebSocket 实时推送）
+- 完整配置面板：config.yml 全部设置项（远程对接 / 鉴权 / 节点解析 / 国旗 /
+  ProxyIP 兑底）在设置页图形化编辑，保存即校验并热重载
+- 仪表盘展示 CF 今日请求量（与在线版面板同源：Pages + Workers 调用量）
 - 配置保存即校验（与启动加载同一套解析器，坏配置拒绝写盘）并热重载运行时；
   仅 `app.host/port/debug` 等监听参数需重启，控制台内一键重启立即生效
 
